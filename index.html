@@ -570,7 +570,7 @@
         <p class="sub" data-tkey="phonics.alphabetHint">點一個字母，聽聽看它的聲音！</p>
         <div class="alpha-grid" id="phonicsAlphabet"></div>
       </div>
-      <div class="panel spell-card">
+      <div class="panel spell-card" id="phonicsWordPanel">
         <p class="phonics-section-title" data-tkey="phonics.wordTitle">👻 陰影拼字挑戰</p>
         <p class="sub" style="text-align:left;" data-tkey="phonics.wordHint">看提示的淡淡字母，把正確字母排進去，點字母還會聽到它的發音喔！</p>
         <div class="em" id="phEm">🛝</div>
@@ -846,6 +846,9 @@ function categoryMeta(id){ return CATEGORY_META.find(c=>c.id===id) || {id, icon:
 const DIFF_SIZES = {easy:5, medium:7, hard:10};
 /* 自然發音功能：字母發音音檔已經備妥（audio/phonics/、audio/alphabet/），正式開放。 */
 const PHONICS_ENABLED = true;
+/* 陰影拼字挑戰（下半部，會連續唸到像 ee 這種重複字母時發音有問題）先暫時隱藏，
+   只保留上半部的字母認讀方塊。等發音確認沒問題了，改成 true 就會恢復顯示。 */
+const PHONICS_WORD_CHALLENGE_ENABLED = false;
 const DEFAULT_TEXT = {
   "app.title": "幼稚園單字樂園",
   "app.subtitle": "選一個主題，開始學英文！",
@@ -2070,6 +2073,11 @@ if(!PHONICS_ENABLED){
   if(nav) nav.style.gridTemplateColumns = 'repeat(5,1fr)';
   const memoryCard = document.querySelector('.game-card.gc-5');
   if(memoryCard) memoryCard.style.gridColumn = '1/-1';
+}
+/* 陰影拼字挑戰（下半部）先隱藏，只留字母認讀方塊；PHONICS_WORD_CHALLENGE_ENABLED 改回 true 就會恢復 */
+if(!PHONICS_WORD_CHALLENGE_ENABLED){
+  const panel = document.getElementById('phonicsWordPanel');
+  if(panel) panel.classList.add('hidden');
 }
 
 /* ===================== MEMORY ===================== */

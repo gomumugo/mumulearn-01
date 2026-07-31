@@ -1,0 +1,2484 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>英文單字遊戲 Demo</title>
+<meta property="og:title" content="英文單字遊戲 Demo">
+<meta property="og:description" content="選一個主題，開始學英文！">
+<meta property="og:type" content="website">
+<meta name="twitter:title" content="英文單字遊戲 Demo">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Noto+Sans+TC:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#5DB7E8; --blue-d:#3E9BD1;
+    --green:#6FCF97; --green-d:#4CAF77;
+    --purple:#B084F0; --purple-d:#9160D9;
+    --orange:#FFB86B; --orange-d:#F59A3A;
+    --pink:#FF9FC7; --pink-d:#F272A6;
+    --ink:#3A3450; --paper:#FFFDF8;
+    --shadow: 0 6px 0 rgba(0,0,0,0.12);
+    /* 字級調整倍率（管理模式的「字級設定」面板會改這幾個變數的值，預設都是 1 倍） */
+    --fs-title:1; --fs-subtitle:1; --fs-body:1;
+    --fs-home:1; --fs-flashcard:1; --fs-matching:1; --fs-quiz:1; --fs-spelling:1; --fs-memory:1;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:'Noto Sans TC','Baloo 2',sans-serif;
+    background: linear-gradient(180deg,#CDEBFA 0%, #EAF7EC 45%, #FFF6E0 100%);
+    color:var(--ink);
+    min-height:100vh;
+    overflow-x:hidden;
+    user-select:none;
+  }
+  h1,h2,h3,.title-font{font-family:'Baloo 2','Noto Sans TC',sans-serif;}
+  #app{max-width:520px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;position:relative;}
+
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 16px 10px;
+  }
+  header .brand{display:flex;align-items:center;gap:8px;}
+  header .brand .logo{font-size:28px; cursor:pointer; user-select:none;}
+  header .brand h1{font-size:calc(17px * var(--fs-title));margin:0;line-height:1.2;}
+  header .brand p{margin:0;font-size:calc(11px * var(--fs-subtitle));color:#7a7391;}
+  #progressCodeTrigger{
+    border:none; background:none; padding:0; margin-top:2px; font-size:11px; font-weight:700;
+    color:#a79fc2; cursor:pointer; letter-spacing:.5px;
+  }
+  #scoreBadge{
+    background:var(--paper); border-radius:20px; padding:6px 14px;
+    font-weight:700; font-size:15px; box-shadow:var(--shadow); color:var(--orange-d);
+    display:flex; align-items:center; gap:4px; white-space:nowrap; cursor:pointer; border:none;
+  }
+  #scoreBadge .chest-icon{font-size:20px;}
+  #scoreBadge.bounce{animation:chestBounce .4s;}
+  @keyframes chestBounce{0%{transform:scale(1);}40%{transform:scale(1.3);}100%{transform:scale(1);}}
+
+  /* 答對一題，會有一顆星星從答對的地方飛到右上角的寶箱裡，比單純數字跳動更有「我拿到了」的感覺 */
+  .flying-star{
+    position:fixed; font-size:22px; z-index:90; pointer-events:none; left:0; top:0;
+    animation:flyToChest .55s cubic-bezier(.3,.6,.4,1) forwards;
+  }
+  @keyframes flyToChest{
+    0%{transform:translate(0,0) scale(1); opacity:1;}
+    70%{transform:translate(calc(var(--fly-dx) * 0.9), calc(var(--fly-dy) * 0.9)) scale(1.3); opacity:1;}
+    100%{transform:translate(var(--fly-dx), var(--fly-dy)) scale(.3); opacity:0;}
+  }
+
+  /* 星星收藏面板：點寶箱看目前收集幾顆星星、解鎖了哪些小獎章 */
+  .badge-grid{display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:14px;}
+  .badge-item{width:70px; text-align:center; font-size:11px; font-weight:700; color:#8a84a0;}
+  .badge-item .bi-icon{
+    font-size:36px; display:block; margin-bottom:4px; filter:grayscale(1); opacity:.35;
+    background:#F3F0FF; border-radius:16px; padding:8px 0;
+  }
+  .badge-item.unlocked .bi-icon{filter:none; opacity:1; background:linear-gradient(180deg,#FFF7E0,#FFEAC2);}
+  .badge-item .bi-count{display:block; margin-top:2px;}
+
+  /* 解鎖新獎章時的慶祝彈窗，樣式跟過關彈窗共用 .pass-card */
+  #badgeUnlockOverlay{
+    position:fixed; inset:0; background:rgba(58,52,80,.55); display:none; align-items:center; justify-content:center;
+    z-index:55; flex-direction:column;
+  }
+  #badgeUnlockOverlay.show{display:flex;}
+
+  .speed-row{
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    padding:0 20px 12px;
+  }
+  .speed-row .speed-label{font-size:calc(11px * var(--fs-body)); color:#8a84a0; font-weight:700; margin-right:2px; white-space:nowrap;}
+  .speed-icon{font-size:24px; line-height:1; user-select:none;}
+  #speedSlider{
+    flex:1; max-width:220px; height:12px; border-radius:8px; -webkit-appearance:none; appearance:none;
+    background:linear-gradient(90deg,#CDEBFA,#FFE7C2); outline:none; cursor:pointer;
+  }
+  #speedSlider::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:30px; height:30px; border-radius:50%;
+    background:var(--purple); box-shadow:0 4px 0 var(--purple-d); cursor:pointer; border:3px solid #fff;
+  }
+  #speedSlider::-moz-range-thumb{
+    width:30px; height:30px; border-radius:50%; background:var(--purple); border:3px solid #fff;
+    box-shadow:0 4px 0 var(--purple-d); cursor:pointer;
+  }
+
+  nav#gameNav{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+    padding:0 12px 10px;
+  }
+  nav#gameNav button{
+    border:none; border-radius:16px; padding:10px 2px; font-size:calc(12px * var(--fs-body));
+    background:var(--paper); box-shadow:var(--shadow); font-weight:700; color:#8a84a0;
+    display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;
+    transition:transform .12s; min-height:56px;
+  }
+  nav#gameNav button .ic{font-size:26px;}
+  nav#gameNav button.active{background:var(--blue); color:#fff; transform:translateY(2px); box-shadow:0 3px 0 var(--blue-d);}
+  nav#gameNav button:active{transform:translateY(3px);}
+
+  main{flex:1; padding:6px 16px 40px; position:relative;}
+  .view{display:none; animation:fadeIn .25s ease;}
+  .view.active{display:block;}
+  @keyframes fadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+  /* HOME */
+  .home-hero{
+    background:var(--paper); border-radius:24px; padding:18px; box-shadow:var(--shadow); text-align:center; margin-bottom:16px;
+  }
+  .home-hero h2{margin:4px 0 2px; font-size:calc(20px * var(--fs-home));}
+  .home-hero p{margin:0; font-size:calc(13px * var(--fs-body));color:#7a7391;}
+  .diff-toggle{display:flex; gap:8px; justify-content:center; margin:16px 0 6px; flex-wrap:wrap;}
+  .diff-toggle button{
+    border:none; border-radius:14px; padding:8px 14px; font-weight:700; font-size:calc(12px * var(--fs-body));
+    background:var(--paper); box-shadow:var(--shadow); color:#8a84a0; cursor:pointer;
+  }
+  .diff-toggle button.active{background:var(--purple); color:#fff; box-shadow:0 3px 0 var(--purple-d); transform:translateY(1px);}
+  .category-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;}
+  .category-card{
+    border:none; border-radius:18px; padding:14px 10px; text-align:center; cursor:pointer;
+    background:var(--paper); box-shadow:var(--shadow); font-weight:700; display:flex; flex-direction:column; align-items:center;
+  }
+  .category-card .cc-ic{font-size:44px; display:block; margin-bottom:6px;}
+  .category-card .cc-label{font-size:calc(15px * var(--fs-home)); display:block;}
+  .category-card .cc-count{font-size:calc(11px * var(--fs-body)); color:#8a84a0; display:block; margin-top:2px; font-weight:400;}
+  .category-card{min-height:104px; justify-content:center;}
+  .category-card:active{transform:scale(.97);}
+  .word-preview{display:flex; gap:10px; justify-content:center; margin-top:14px; flex-wrap:wrap;}
+  .word-preview .chip{
+    background:linear-gradient(180deg,#fff,#F3F0FF); border-radius:16px; padding:10px 8px; width:88px;
+    box-shadow:var(--shadow); font-size:calc(15px * var(--fs-home)); font-weight:700; cursor:pointer;
+  }
+  .word-preview .chip:active{transform:scale(.96);}
+  .word-preview .chip .em{font-size:calc(32px * var(--fs-home)); display:block; margin-bottom:2px;}
+  .word-preview .chip .zy-display{margin-top:3px;}
+  .word-preview .chip .zy-han{font-size:calc(20px * var(--fs-home));}
+  .word-preview .chip .zy-col{font-size:calc(9px * var(--fs-home));}
+  .chip-speak-row{display:flex; gap:5px; justify-content:center; margin-top:6px;}
+  .chip-speak-btn{
+    border:none; border-radius:50%; width:26px; height:26px; font-size:12px; cursor:pointer;
+    background:var(--blue); color:#fff; box-shadow:0 2px 0 var(--blue-d);
+  }
+  .chip-speak-btn.chip-speak-zh{background:var(--pink); box-shadow:0 2px 0 var(--pink-d);}
+  .chip-speak-btn:active{transform:translateY(2px); box-shadow:none;}
+  .game-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .game-card{
+    border:none; border-radius:20px; padding:16px 10px; text-align:left; cursor:pointer;
+    color:#fff; box-shadow:var(--shadow); position:relative; overflow:hidden;
+  }
+  .game-card{min-height:118px;}
+  .game-card .ic{font-size:40px; display:block; margin-bottom:8px;}
+  .game-card .t1{font-weight:800; font-size:calc(16px * var(--fs-body)); display:block;}
+  .game-card .t2{font-size:calc(12px * var(--fs-body)); opacity:.9; display:block; margin-top:2px;}
+  .game-card:active{transform:scale(.97);}
+  .gc-1{background:linear-gradient(135deg,var(--blue),var(--blue-d));}
+  .gc-2{background:linear-gradient(135deg,var(--green),var(--green-d));}
+  .gc-3{background:linear-gradient(135deg,var(--purple),var(--purple-d));}
+  .gc-4{background:linear-gradient(135deg,var(--orange),var(--orange-d));}
+  .gc-5{background:linear-gradient(135deg,var(--pink),var(--pink-d));}
+  .gc-6{background:linear-gradient(135deg,#7BD8C4,#3FB89E);}
+
+  .panel{background:var(--paper); border-radius:22px; padding:16px; box-shadow:var(--shadow); margin-bottom:14px;}
+  .panel h2{margin:0 0 4px; font-size:calc(17px * var(--fs-body));}
+  .panel .sub{font-size:calc(12px * var(--fs-body)); color:#8a84a0; margin:0 0 10px;}
+
+  .btn{
+    border:none; border-radius:16px; padding:12px 16px; font-weight:700; font-size:14px;
+    cursor:pointer; box-shadow:var(--shadow); color:#fff; background:var(--blue);
+  }
+  .btn:active{transform:translateY(3px); box-shadow:none;}
+  .btn.secondary{background:var(--paper); color:var(--ink); box-shadow:0 4px 0 #ddd6ee;}
+  .btn.block{width:100%;}
+  .btn.btn-huge{padding:18px 16px; font-size:20px; border-radius:20px; box-shadow:0 6px 0 var(--blue-d);}
+  .btn.btn-huge:active{transform:translateY(6px); box-shadow:none;}
+  .row{display:flex; gap:10px; align-items:center;}
+  .row.between{justify-content:space-between;}
+  .row.center{justify-content:center;}
+
+  /* 注音手動排版元件：國字在左，注音（最多3個字母，聲調貼最後一個字母右上角）疊一欄在右，直式排列 */
+  .zy-display{display:inline-flex; flex-wrap:wrap; align-items:center;}
+  .zy-syllable{display:inline-flex; align-items:center; margin-right:0.22em;}
+  .zy-han{font-size:1em; line-height:1.1; font-family:'Noto Sans TC','Baloo 2',sans-serif; font-weight:800; color:var(--ink);}
+  .zy-col{display:inline-flex; flex-direction:column; align-items:flex-start; line-height:1; margin-left:2px; font-size:0.22em; font-weight:700; color:#7a7391;}
+  .zy-letter{line-height:1;}
+  .zy-neutral{font-size:0.85em; line-height:1;}
+  .zy-letter-tone{position:relative; display:inline-block; line-height:1;}
+  .zy-tone{position:absolute; top:-0.55em; left:100%; font-size:0.75em; line-height:1; white-space:nowrap;}
+  /* 全站中文自動注音（掃描頁面任意文字自動加注音），比例比精選注音略大，方便小字級的一般文字也看得清楚 */
+  .zy-auto .zy-col{font-size:0.32em;}
+
+  /* FLASHCARD */
+  .flash-wrap{display:flex; flex-direction:column; align-items:center; gap:14px;}
+  .flash-progress{font-size:calc(12px * var(--fs-body)); color:#8a84a0; font-weight:700;}
+  .flashcard{
+    width:100%; max-width:280px; aspect-ratio:3/4; background:var(--paper);
+    border-radius:26px; box-shadow:0 10px 0 #E4DEF5; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; padding:20px; position:relative; cursor:pointer;
+    transition:transform .15s;
+  }
+  .flashcard:active{transform:scale(.98);}
+  .flashcard .art{font-size:calc(96px * var(--fs-flashcard)); margin-bottom:10px; filter:drop-shadow(0 4px 3px rgba(0,0,0,.12));}
+  .flashcard .en{font-size:calc(40px * var(--fs-flashcard)); font-weight:800; font-family:'Baloo 2';}
+  .flashcard .zy-display{font-size:calc(42px * var(--fs-flashcard)); margin-top:8px;}
+  .flashcard .learned-tag{
+    position:absolute; top:12px; right:12px; background:var(--green); color:#fff; font-size:11px;
+    padding:3px 9px; border-radius:12px; font-weight:700; display:none;
+  }
+  .flashcard.learned .learned-tag{display:block;}
+  .speak-btn{
+    width:68px; height:68px; border-radius:50%; background:var(--blue); color:#fff; border:none;
+    font-size:30px; box-shadow:0 4px 0 var(--blue-d); cursor:pointer;
+  }
+  .speak-btn:active{transform:translateY(4px); box-shadow:none;}
+  .flash-nav{display:flex; gap:16px; align-items:center;}
+  .nav-arrow{
+    width:52px; height:52px; border-radius:50%; border:none; background:var(--paper);
+    box-shadow:var(--shadow); font-size:20px; cursor:pointer; color:var(--ink);
+  }
+  .nav-arrow:active{transform:translateY(3px); box-shadow:none;}
+
+  /* MATCHING */
+  .match-cols{display:flex; gap:10px;}
+  .match-col{flex:1; display:flex; flex-direction:column; gap:8px;}
+  .match-item{
+    background:var(--paper); border-radius:14px; padding:14px 8px; text-align:center; font-weight:700;
+    box-shadow:var(--shadow); cursor:pointer; font-size:calc(16px * var(--fs-matching)); border:3px solid transparent;
+    min-height:48px; display:flex; align-items:center; justify-content:center;
+  }
+  .match-item.emoji{font-size:calc(40px * var(--fs-matching)); padding:12px;}
+  .match-item.selected{border-color:var(--blue); background:#EAF6FF;}
+  .match-item.matched{background:#E4F8EA; color:var(--green-d); border-color:var(--green); opacity:.7; cursor:default;}
+  .match-item.wrong{animation:shake .35s;}
+  @keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-6px);}75%{transform:translateX(6px);}}
+
+  /* QUIZ */
+  .mode-toggle{display:flex; background:#EFE9FF; border-radius:16px; padding:4px; margin-bottom:12px;}
+  .mode-toggle button{flex:1; border:none; background:transparent; padding:9px; border-radius:12px; font-weight:700; font-size:calc(13px * var(--fs-body)); color:#8a7fb5; cursor:pointer;}
+  .mode-toggle button.active{background:var(--purple); color:#fff;}
+  .quiz-prompt{text-align:center; padding:20px 10px;}
+  .quiz-prompt .zy-display{font-size:calc(44px * var(--fs-quiz)); justify-content:center;}
+  .quiz-prompt .big-speak{margin:10px auto 0;}
+  .quiz-options{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .quiz-opt{
+    background:var(--paper); border-radius:16px; padding:20px 8px; text-align:center; box-shadow:var(--shadow);
+    cursor:pointer; font-weight:700; border:3px solid transparent; font-size:calc(16px * var(--fs-quiz));
+    min-height:64px;
+  }
+  .quiz-opt .em{font-size:calc(44px * var(--fs-quiz)); display:block; margin-bottom:4px;}
+  .quiz-opt.correct{border-color:var(--green); background:#E4F8EA;}
+  .quiz-opt.incorrect{border-color:#F26D6D; background:#FDEAEA;}
+  .quiz-footer{display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:calc(12px * var(--fs-body)); color:#8a84a0; font-weight:700;}
+
+  /* SPELLING */
+  .spell-card{text-align:center;}
+  .spell-card .em{font-size:calc(70px * var(--fs-spelling));}
+  .spell-card .zy-display{font-size:calc(38px * var(--fs-spelling)); margin-top:6px; justify-content:center;}
+  .spell-slots{display:flex; gap:7px; justify-content:center; margin:16px 0; flex-wrap:wrap; min-height:60px;}
+  .slot{
+    width:50px; height:56px; border-radius:12px; border:2px dashed #cfc6ea; background:#F7F4FF;
+    display:flex; align-items:center; justify-content:center; font-size:calc(22px * var(--fs-spelling)); font-weight:800; color:var(--purple-d);
+  }
+  .slot.filled{border-style:solid; background:#EFE9FF;}
+  /* GHOST LETTER 提示：填入前先用淡淡的灰色字顯示正確字母，降低孩子猜字母的認知負荷，
+     像「描字」一樣有方向感，填對後變成實色 */
+  .slot.ghost{color:rgba(58,52,80,.3); border-style:dashed;}
+  .letter-bank{display:flex; gap:9px; justify-content:center; flex-wrap:wrap; margin-bottom:14px;}
+  .letter-tile{
+    width:50px; height:56px; border-radius:12px; border:none; background:var(--purple); color:#fff;
+    font-size:calc(22px * var(--fs-spelling)); font-weight:800; box-shadow:0 4px 0 var(--purple-d); cursor:pointer;
+  }
+  .letter-tile:active{transform:translateY(4px); box-shadow:none;}
+  .letter-tile.used{visibility:hidden;}
+
+  /* PHONICS / 自然發音字母遊戲 */
+  .alpha-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin:14px 0;}
+  .alpha-tile{
+    aspect-ratio:1; border-radius:14px; border:none; background:linear-gradient(135deg,#7BD8C4,#3FB89E);
+    color:#fff; font-size:calc(22px * var(--fs-body)); font-weight:800; box-shadow:0 4px 0 #2E9C85; cursor:pointer;
+  }
+  .alpha-tile:active{transform:translateY(3px); box-shadow:none;}
+  .alpha-tile.bounce{animation:alphaBounce .4s;}
+  @keyframes alphaBounce{0%{transform:scale(1);}40%{transform:scale(1.25);}100%{transform:scale(1);}}
+  .phonics-section-title{font-size:calc(14px * var(--fs-body)); font-weight:800; color:var(--ink); margin:14px 0 4px;}
+
+  /* MEMORY */
+  .memory-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px;}
+  .mem-card{
+    aspect-ratio:3/4; border-radius:12px; cursor:pointer; position:relative;
+    perspective:600px;
+  }
+  .mem-inner{
+    width:100%; height:100%; position:relative; transform-style:preserve-3d; transition:transform .35s;
+  }
+  .mem-card.flip .mem-inner{transform:rotateY(180deg);}
+  .mem-face{
+    position:absolute; inset:0; border-radius:12px; backface-visibility:hidden;
+    display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow);
+  }
+  .mem-back{background:linear-gradient(135deg,var(--pink),var(--purple)); font-size:calc(22px * var(--fs-memory)); color:#fff;}
+  .mem-front{background:var(--paper); transform:rotateY(180deg); font-size:calc(26px * var(--fs-memory)); font-weight:800; flex-direction:column; padding:4px;}
+  .mem-front .en{font-size:calc(12px * var(--fs-memory)); font-weight:700; margin-top:2px;}
+  .mem-card.matched .mem-front{background:#E4F8EA;}
+  .mem-card.matched{opacity:.75;}
+
+  .stat-row{display:flex; justify-content:space-between; font-size:calc(12px * var(--fs-body)); color:#8a84a0; font-weight:700; margin-bottom:8px;}
+
+  /* PASS OVERLAY */
+  #passOverlay{
+    position:fixed; inset:0; background:rgba(58,52,80,.55); display:none; align-items:center; justify-content:center;
+    z-index:50; flex-direction:column;
+  }
+  #passOverlay.show{display:flex;}
+  .pass-card{
+    background:var(--paper); border-radius:26px; padding:30px 26px; text-align:center; max-width:280px;
+    box-shadow:0 10px 0 rgba(0,0,0,.2); animation:pop .4s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes pop{0%{transform:scale(.4); opacity:0;}100%{transform:scale(1); opacity:1;}}
+  .pass-card .stars{font-size:40px; margin-bottom:6px;}
+  .pass-card h2{margin:0 0 6px; font-size:22px; color:var(--orange-d);}
+  .pass-card p{margin:0 0 16px; font-size:13px; color:#7a7391;}
+  .confetti{position:absolute; top:-10px; font-size:20px; animation:fall linear forwards;}
+  @keyframes fall{to{transform:translateY(110vh) rotate(360deg); opacity:.2;}}
+
+  /* 單題答對時，從答對的元素旁邊冒出的小星星特效（跟過關時的大量彩帶不同，這個是每一題都會有的小回饋） */
+  .mini-star{position:fixed; font-size:20px; pointer-events:none; z-index:80; animation:miniStarPop .65s ease-out forwards;}
+  @keyframes miniStarPop{
+    0%{transform:translate(0,0) scale(.5); opacity:1;}
+    100%{transform:translate(var(--dx), var(--dy)) scale(1.15); opacity:0;}
+  }
+
+  .footer-note{text-align:center; font-size:calc(11px * var(--fs-body)); color:#a79fc2; padding:10px 20px 0;}
+
+  /* ===================== 管理模式（大人專用） =====================
+     編輯功能只透過長按氣球 3 秒登入後跳出的工具列進入，畫面上（包含小孩看到的畫面）
+     不會出現任何鉛筆／編輯圖示，避免誤觸或被看到操作方式。 */
+  .hidden{display:none !important;}
+
+  #adminBar{
+    position:fixed; left:0; right:0; bottom:0; z-index:60;
+    background:var(--ink); color:#fff; display:none;
+    padding:10px 14px; gap:8px; justify-content:center; align-items:center;
+    box-shadow:0 -4px 14px rgba(0,0,0,.25);
+  }
+  body.admin-mode #adminBar{display:flex;}
+  #adminBar button{
+    border:none; border-radius:12px; padding:8px 12px; font-weight:700; font-size:12px; cursor:pointer;
+    background:#544d6e; color:#fff;
+  }
+  #adminBar button.danger{background:var(--pink-d);}
+  #adminBar .admin-label{font-size:11px; opacity:.75; margin-right:auto;}
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(58,52,80,.6); z-index:70;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-box{
+    background:#fff; border-radius:20px; padding:22px; width:100%; max-width:380px;
+    max-height:85vh; overflow-y:auto; box-shadow:0 10px 0 rgba(0,0,0,.2);
+  }
+  .modal-box h3{margin:0 0 14px; font-size:17px;}
+  .modal-box label{display:block; font-size:12px; font-weight:700; color:#8a84a0; margin:10px 0 4px;}
+  .modal-box input[type="text"], .modal-box input[type="email"], .modal-box input[type="password"], .modal-box textarea, .modal-box select{
+    width:100%; padding:10px 12px; border-radius:10px; border:2px solid #E4DEF5; font-size:14px;
+    font-family:inherit; box-sizing:border-box; background:#fff;
+  }
+  .modal-box textarea{min-height:70px; resize:vertical;}
+  .modal-box .modal-actions{display:flex; gap:8px; margin-top:16px;}
+  .modal-box .err{color:#F26D6D; font-size:12px; margin-top:8px; min-height:14px;}
+  .modal-close{position:sticky; top:0; float:right; border:none; background:none; font-size:20px; cursor:pointer; color:#8a84a0;}
+
+  .fs-slider-row{margin-bottom:14px;}
+  .fs-slider-row .row.between{margin-bottom:4px;}
+  .fs-slider-row input[type="range"]{width:100%;}
+
+  .word-table{width:100%; border-collapse:collapse; font-size:13px; margin-bottom:12px;}
+  .word-table th, .word-table td{padding:6px 4px; border-bottom:1px solid #EFE9FF; text-align:left;}
+  .word-table td.wt-actions{white-space:nowrap;}
+  .word-table td.wt-actions button{border:none; border-radius:8px; padding:4px 7px; font-size:11px; cursor:pointer; margin-right:4px;}
+  .wt-edit{background:var(--blue); color:#fff;}
+  .wt-del{background:var(--pink-d); color:#fff;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="brand">
+      <span class="logo" id="adminTrigger" title="長按 3 秒進入管理模式">🎈</span>
+      <div>
+        <h1 data-tkey="app.title">幼稚園單字樂園</h1>
+        <p data-tkey="app.subtitle">Demo · 5 個測試單字</p>
+        <button id="progressCodeTrigger" title="點我看看／更換裝置代碼">🔗 <span id="progressCodeMini">------</span></button>
+      </div>
+    </div>
+    <button id="scoreBadge" title="點我看看收集了幾顆星星"><span class="chest-icon">🎁</span> <span id="starVal">0</span> ⭐</button>
+  </header>
+
+  <div class="speed-row" id="speedRow">
+    <span class="speed-label" data-tkey="speed.label">🎚️ 語速</span>
+    <span class="speed-icon" title="慢">🐢</span>
+    <input type="range" id="speedSlider" min="60" max="140" step="5" value="100" aria-label="語速調整，左邊烏龜較慢，右邊兔子較快">
+    <span class="speed-icon" title="快">🐇</span>
+  </div>
+
+  <nav id="gameNav">
+    <button data-view="home" class="active"><span class="ic">🏠</span><span data-tkey="nav.home">首頁</span></button>
+    <button data-view="flashcard"><span class="ic">🃏</span><span data-tkey="nav.flashcard">單字卡</span></button>
+    <button data-view="matching"><span class="ic">🔗</span><span data-tkey="nav.matching">配對</span></button>
+    <button data-view="quiz"><span class="ic">📝</span><span data-tkey="nav.quiz">測驗</span></button>
+    <button data-view="spelling"><span class="ic">🔤</span><span data-tkey="nav.spelling">拼字</span></button>
+    <button data-view="phonics"><span class="ic">🔡</span><span data-tkey="nav.phonics">自然發音</span></button>
+  </nav>
+
+  <main>
+    <!-- HOME：選難度 + 選分類 -->
+    <section class="view active" id="view-home">
+      <div class="home-hero">
+        <div style="font-size:34px;">👋</div>
+        <h2 data-tkey="home.greeting">Hi！準備好練習了嗎？</h2>
+        <p data-tkey="home.intro">先選難度，再挑一個主題，我們開始練習吧 😊</p>
+      </div>
+      <div class="diff-toggle" id="diffToggle">
+        <button data-diff="easy" class="active" data-tkey="diff.easy">😊 簡單（5個）</button>
+        <button data-diff="medium" data-tkey="diff.medium">🙂 中等（7個）</button>
+        <button data-diff="hard" data-tkey="diff.hard">💪 挑戰（10個）</button>
+      </div>
+      <div class="category-grid" id="categoryGrid"></div>
+    </section>
+
+    <!-- CATEGORY：選好主題後，這一組單字預覽 + 5 個遊戲入口 -->
+    <section class="view" id="view-category">
+      <div class="panel">
+        <div class="row">
+          <button class="nav-arrow" id="catBack">◀</button>
+          <h2 id="catTitle" style="margin:0;">🏞️ 公園探險</h2>
+        </div>
+        <p class="sub" id="catRoundInfo">這一組共 5 個單字（第 1 / 1 組）</p>
+        <div class="word-preview" id="catPreview"></div>
+        <div class="row center" style="margin-top:12px;">
+          <button class="btn secondary" id="catNextRound">🔀 換一組單字</button>
+        </div>
+      </div>
+      <div class="game-grid">
+        <button class="game-card gc-1" data-view="flashcard"><span class="ic">🃏</span><span class="t1" data-tkey="home.card1.title">單字卡</span><span class="t2" data-tkey="home.card1.desc">圖片＋發音朗讀</span></button>
+        <button class="game-card gc-2" data-view="matching"><span class="ic">🔗</span><span class="t1" data-tkey="home.card2.title">配對遊戲</span><span class="t2" data-tkey="home.card2.desc">英文配圖片</span></button>
+        <button class="game-card gc-3" data-view="quiz"><span class="ic">📝</span><span class="t1" data-tkey="home.card3.title">選擇題測驗</span><span class="t2" data-tkey="home.card3.desc">看中文／聽發音</span></button>
+        <button class="game-card gc-4" data-view="spelling"><span class="ic">🔤</span><span class="t1" data-tkey="home.card4.title">拼字遊戲</span><span class="t2" data-tkey="home.card4.desc">組出正確英文單字</span></button>
+        <button class="game-card gc-5" data-view="memory"><span class="ic">🧠</span><span class="t1" data-tkey="home.card5.title">翻卡記憶配對</span><span class="t2" data-tkey="home.card5.desc">考驗記憶力，全部配對成功過關！</span></button>
+        <button class="game-card gc-6" data-view="phonics"><span class="ic">🔡</span><span class="t1" data-tkey="home.card6.title">自然發音</span><span class="t2" data-tkey="home.card6.desc">認讀字母＋聽發音拼字</span></button>
+      </div>
+      <p class="footer-note" data-tkey="home.footer">🎨 圖片為示意用的卡通圖示（無版權疑慮），正式版將改為委製插畫或有授權的卡通素材，風格可對齊課本。</p>
+    </section>
+
+    <!-- FLASHCARD -->
+    <section class="view" id="view-flashcard">
+      <div class="panel" style="background:transparent; box-shadow:none; padding:0;">
+        <div class="flash-wrap">
+          <div class="flash-progress" id="fcProgress">1 / 5</div>
+          <div class="flashcard" id="fcCard">
+            <span class="learned-tag" data-tkey="flashcard.learnedTag">已學會 ✓</span>
+            <div class="art" id="fcArt">🛝</div>
+            <div class="en" id="fcEn">swing</div>
+            <div class="zy-display" id="fcZhuyin"></div>
+          </div>
+          <div class="row" style="gap:14px;">
+            <button class="speak-btn" id="fcSpeak">🔊</button>
+            <button class="speak-btn" id="fcSpeakZh" style="background:var(--pink); box-shadow:0 4px 0 var(--pink-d); font-size:18px;">中</button>
+          </div>
+          <div class="flash-nav">
+            <button class="nav-arrow" id="fcPrev">◀</button>
+            <button class="btn secondary" id="fcLearned" data-tkey="flashcard.learnedBtn">標記已學會</button>
+            <button class="nav-arrow" id="fcNext">▶</button>
+          </div>
+          <p class="footer-note" data-tkey="flashcard.hint">點卡片或藍色 🔊 播放英文發音；點粉紅色「中」播放中文發音</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- MATCHING -->
+    <section class="view" id="view-matching">
+      <div class="panel">
+        <h2 data-tkey="matching.title">🔗 配對遊戲</h2>
+        <p class="sub" data-tkey="matching.sub">先點左邊英文單字，再點右邊對應的圖片！</p>
+        <div class="stat-row"><span id="matchProgress">配對成功 0 / 5</span><span id="matchScore">得分 0</span></div>
+        <div class="match-cols">
+          <div class="match-col" id="matchWords"></div>
+          <div class="match-col" id="matchImgs"></div>
+        </div>
+      </div>
+      <button class="btn secondary block" id="matchRestart" data-tkey="btn.restart">🔄 重新開始</button>
+    </section>
+
+    <!-- QUIZ -->
+    <section class="view" id="view-quiz">
+      <div class="panel">
+        <h2 data-tkey="quiz.title">📝 選擇題測驗</h2>
+        <div class="mode-toggle">
+          <button id="modeZh" class="active" data-tkey="quiz.modeZh">👀 看中文選英文</button>
+          <button id="modeAudio" data-tkey="quiz.modeAudio">👂 聽發音選圖片</button>
+        </div>
+        <div class="quiz-prompt" id="quizPrompt"></div>
+        <div class="quiz-options" id="quizOptions"></div>
+        <div class="quiz-footer">
+          <span id="quizProgress">第 1 / 5 題</span>
+          <span id="quizScore">得分 0</span>
+        </div>
+      </div>
+      <button class="btn secondary block" id="quizRestart" data-tkey="btn.restart">🔄 重新開始</button>
+    </section>
+
+    <!-- SPELLING -->
+    <section class="view" id="view-spelling">
+      <div class="panel spell-card">
+        <h2 style="text-align:left;" data-tkey="spelling.title">🔤 拼字遊戲</h2>
+        <p class="sub" style="text-align:left;" data-tkey="spelling.sub">看圖片和中文，把字母排成正確的英文單字</p>
+        <div class="em" id="spEm">🛝</div>
+        <div class="zy-display" id="spZhuyin"></div>
+        <div class="row center" style="gap:14px; margin:8px 0;">
+          <button class="speak-btn" id="spSpeak" style="width:52px;height:52px;font-size:22px;">🔊</button>
+          <button class="speak-btn" id="spSpeakZh" style="width:52px;height:52px;font-size:16px; background:var(--pink); box-shadow:0 4px 0 var(--pink-d);">中</button>
+        </div>
+        <div class="spell-slots" id="spSlots"></div>
+        <div class="letter-bank" id="spBank"></div>
+        <div class="row center" style="gap:10px;">
+          <button class="btn secondary" id="spClear" data-tkey="spelling.clear">⬅️ 退一格</button>
+          <button class="btn" id="spCheck" style="background:var(--orange);" data-tkey="spelling.submit">送出答案</button>
+        </div>
+        <div class="quiz-footer">
+          <span id="spProgress">第 1 / 5 題</span>
+          <span id="spScore">得分 0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- MEMORY -->
+    <section class="view" id="view-memory">
+      <div class="panel">
+        <h2 data-tkey="memory.title">🧠 翻卡記憶配對</h2>
+        <p class="sub" data-tkey="memory.sub">翻開兩張卡，找出圖片與英文單字的配對！</p>
+        <div class="stat-row"><span id="memMoves">翻牌次數 0</span><span id="memPairs">配對成功 0 / 5</span></div>
+        <div class="memory-grid" id="memGrid"></div>
+      </div>
+      <button class="btn secondary block" id="memRestart" data-tkey="btn.restart">🔄 重新開始</button>
+    </section>
+
+    <!-- PHONICS：自然發音（字母認讀）＋ 陰影字母拼字 -->
+    <section class="view" id="view-phonics">
+      <div class="panel">
+        <h2 data-tkey="phonics.title">🔡 自然發音</h2>
+        <p class="sub" data-tkey="phonics.alphabetHint">點一個字母，聽聽看它的聲音！</p>
+        <div class="alpha-grid" id="phonicsAlphabet"></div>
+      </div>
+      <div class="panel spell-card">
+        <p class="phonics-section-title" data-tkey="phonics.wordTitle">👻 陰影拼字挑戰</p>
+        <p class="sub" style="text-align:left;" data-tkey="phonics.wordHint">看提示的淡淡字母，把正確字母排進去，點字母還會聽到它的發音喔！</p>
+        <div class="em" id="phEm">🛝</div>
+        <div class="zy-display" id="phWordZhuyin"></div>
+        <div class="spell-slots" id="phSlots"></div>
+        <div class="letter-bank" id="phBank"></div>
+        <div class="row center" style="gap:10px;">
+          <button class="btn secondary" id="phClear" data-tkey="spelling.clear">⬅️ 退一格</button>
+          <button class="btn" id="phCheck" style="background:#3FB89E;" data-tkey="spelling.submit">送出答案</button>
+        </div>
+        <div class="quiz-footer">
+          <span id="phProgress">第 1 / 5 題</span>
+          <span id="phScore">得分 0</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="passOverlay">
+    <div class="pass-card">
+      <div class="stars">🎉🏆🎉</div>
+      <h2 id="passTitle">過關！</h2>
+      <p id="passDesc">太棒了，你完成了這個遊戲！</p>
+      <button class="btn btn-huge block" id="passReplay" style="background:var(--orange); margin-bottom:8px;">🔁 再玩一次</button>
+      <button class="btn block secondary" id="passClose" data-tkey="pass.close">繼續</button>
+    </div>
+  </div>
+
+  <!-- 解鎖新獎章的慶祝彈窗 -->
+  <div id="badgeUnlockOverlay">
+    <div class="pass-card">
+      <div class="stars" id="badgeUnlockIcon" style="font-size:56px;">🐣</div>
+      <h2>解鎖新獎章！</h2>
+      <p id="badgeUnlockName">小雞寶寶</p>
+      <button class="btn block" id="badgeUnlockClose" style="background:var(--green);">太棒了！</button>
+    </div>
+  </div>
+
+  <!-- 星星收藏面板：點右上角寶箱打開 -->
+  <div class="modal-overlay hidden" id="badgeShelfModal">
+    <div class="modal-box" style="text-align:center;">
+      <button class="modal-close" data-close="badgeShelfModal">✕</button>
+      <h3>🎁 我的星星寶箱</h3>
+      <p style="font-size:16px; font-weight:800; color:var(--orange-d); margin:4px 0 0;">目前共 <span id="badgeShelfStars">0</span> 顆星星 ⭐</p>
+      <div class="badge-grid" id="badgeShelfGrid"></div>
+    </div>
+  </div>
+
+  <!-- 裝置代碼面板：換裝置想接續星星／獎章／練習進度，在新裝置輸入同一組代碼就可以 -->
+  <div class="modal-overlay hidden" id="progressCodeModal">
+    <div class="modal-box" style="text-align:center;">
+      <button class="modal-close" data-close="progressCodeModal">✕</button>
+      <h3>🔗 我的進度代碼</h3>
+      <p style="font-size:13px; color:#8a84a0; margin:0 0 4px;">星星、獎章、練習進度都存在這組代碼裡。想在別的裝置（手機、平板、電腦）繼續玩，只要在那台裝置輸入同一組代碼就能接續。</p>
+      <div id="progressCodeDisplay" style="font-size:28px; font-weight:800; letter-spacing:4px; background:#F3F0FF; border-radius:14px; padding:14px; margin:14px 0 8px; color:var(--purple-d); user-select:all; -webkit-user-select:all;">------</div>
+      <button class="btn secondary block" id="progressCodeCopy" style="margin-bottom:14px;">📋 複製代碼</button>
+      <label>輸入其他裝置的代碼來接續</label>
+      <input type="text" id="progressCodeInput" placeholder="例如 AB3XY9" maxlength="8" style="text-transform:uppercase; text-align:center; font-weight:800; letter-spacing:2px; user-select:text; -webkit-user-select:text;">
+      <div class="modal-actions">
+        <button class="btn block" id="progressCodeLink" style="background:var(--blue);">接續這組代碼</button>
+      </div>
+      <p class="err" id="progressCodeErr"></p>
+    </div>
+  </div>
+
+</div>
+
+<!-- 管理者工具列（登入後才會顯示） -->
+<div id="adminBar">
+  <span class="admin-label" id="adminLabel">管理模式</span>
+  <button id="adminOpenTextManager">✏️ 文字內容</button>
+  <button id="adminOpenFontPanel">🔠 字級設定</button>
+  <button id="adminOpenWordManager">📋 單字管理</button>
+  <button id="adminLogout" class="danger">登出</button>
+</div>
+
+<!-- 登入視窗 -->
+<div id="loginModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <button class="modal-close" data-close="loginModal">✕</button>
+    <h3>🔒 管理者登入</h3>
+    <label>電子郵件</label>
+    <input type="email" id="loginEmail" autocomplete="username">
+    <label>密碼</label>
+    <input type="password" id="loginPassword" autocomplete="current-password">
+    <div class="err" id="loginErr"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" data-close="loginModal">取消</button>
+      <button class="btn" id="loginSubmit">登入</button>
+    </div>
+  </div>
+</div>
+
+<!-- 文字內容管理面板：把畫面上所有可編輯文字集中在這裡改，畫面上不會出現任何鉛筆圖示 -->
+<div id="textManagerModal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:460px;">
+    <button class="modal-close" data-close="textManagerModal">✕</button>
+    <h3>✏️ 文字內容</h3>
+    <div id="textManagerList"></div>
+    <div class="err" id="textManagerErr"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" data-close="textManagerModal">取消</button>
+      <button class="btn" id="textManagerSave">全部儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 字級設定面板 -->
+<div id="fontPanelModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <button class="modal-close" data-close="fontPanelModal">✕</button>
+    <h3>🔠 字級設定</h3>
+    <div id="fsSliderList"></div>
+    <div class="err" id="fontPanelErr"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" id="fontPanelReset">還原預設</button>
+      <button class="btn" id="fontPanelSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 單字管理面板 -->
+<div id="wordManagerModal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:460px;">
+    <button class="modal-close" data-close="wordManagerModal">✕</button>
+    <h3>📋 單字管理</h3>
+    <label>篩選分類</label>
+    <select id="wFilterCategory"></select>
+    <table class="word-table">
+      <thead><tr><th>圖示</th><th>英文</th><th>中文</th><th>注音</th><th></th></tr></thead>
+      <tbody id="wordTableBody"></tbody>
+    </table>
+    <div class="err" id="wordManagerErr"></div>
+    <h3 style="font-size:14px; margin-top:18px;">新增單字</h3>
+    <label>分類</label>
+    <select id="wAddCategory"></select>
+    <label>圖示（可貼上一個 emoji）</label>
+    <input type="text" id="wAddEm" placeholder="🛝">
+    <label>英文</label>
+    <input type="text" id="wAddEn" placeholder="swing">
+    <label>中文</label>
+    <input type="text" id="wAddZh" placeholder="鞦韆">
+    <label>注音（每字用空格分隔）</label>
+    <input type="text" id="wAddZhu" placeholder="ㄑㄧㄡ ㄑㄧㄢ">
+    <div class="modal-actions">
+      <button class="btn" id="wAddSubmit" style="background:var(--green);">新增</button>
+    </div>
+  </div>
+</div>
+
+<!-- 單字編輯視窗 -->
+<div id="wordEditModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <button class="modal-close" data-close="wordEditModal">✕</button>
+    <h3>✏️ 編輯單字</h3>
+    <label>分類</label>
+    <select id="wEditCategory"></select>
+    <label>圖示</label>
+    <input type="text" id="wEditEm">
+    <label>英文</label>
+    <input type="text" id="wEditEn">
+    <label>中文</label>
+    <input type="text" id="wEditZh">
+    <label>注音（每字用空格分隔）</label>
+    <input type="text" id="wEditZhu">
+    <div class="err" id="wordEditErr"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" data-close="wordEditModal">取消</button>
+      <button class="btn" id="wEditSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase：登入驗證 + 資料庫，包成 window.FB 讓下面的一般 script 可以呼叫 -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, collection, getDocs, addDoc, deleteDoc, query, orderBy
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  // 這組設定值本來就設計成可以公開寫在前端程式碼裡，真正的存取控制是 Firestore 安全規則，不是靠藏這組值。
+  const firebaseConfig = {
+    apiKey: "AIzaSyAZ6-Oglpzz4tDixnXifYbbKLnjY8Gubag",
+    authDomain: "kidsvocabpart01.firebaseapp.com",
+    projectId: "kidsvocabpart01",
+    storageBucket: "kidsvocabpart01.firebasestorage.app",
+    messagingSenderId: "888442221812",
+    appId: "1:888442221812:web:2738ea2190ef1e8c42daa1",
+    measurementId: "G-EZN0Q84VVM"
+  };
+
+  const fbApp = initializeApp(firebaseConfig);
+  const auth = getAuth(fbApp);
+  const db = getFirestore(fbApp);
+
+  window.FB = {
+    onAuthStateChanged: (cb) => onAuthStateChanged(auth, cb),
+    signIn: (email, password) => signInWithEmailAndPassword(auth, email, password),
+    signOut: () => signOut(auth),
+    // 匿名登入：讓小孩不用帳密也能悄悄跟 Firebase 建立連線，用來讀寫「跨裝置進度代碼」資料，
+    // 跟管理員的 email/password 登入是分開的兩種身分（user.isAnonymous 可以分辨）。
+    signInAnonymously: () => signInAnonymously(auth),
+    // 跨裝置進度：用一組小孩／家長自己保管的短代碼當作文件 ID，換裝置輸入同一組代碼就能接續星星、獎章、練習進度。
+    getProgress: async (code) => {
+      const snap = await getDoc(doc(db, 'progress', code));
+      return snap.exists() ? snap.data() : null;
+    },
+    saveProgress: (code, data) => setDoc(doc(db, 'progress', code), data, { merge: true }),
+    getSiteSettings: async () => {
+      const snap = await getDoc(doc(db, 'settings', 'site'));
+      return snap.exists() ? snap.data() : null;
+    },
+    saveSiteSettings: (data) => setDoc(doc(db, 'settings', 'site'), data, { merge: true }),
+    getWords: async () => {
+      const q = query(collection(db, 'words'), orderBy('order'));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    },
+    addWord: (w) => addDoc(collection(db, 'words'), w),
+    updateWord: (id, w) => setDoc(doc(db, 'words', id), w, { merge: true }),
+    deleteWord: (id) => deleteDoc(doc(db, 'words', id)),
+  };
+  window.dispatchEvent(new Event('fb-ready'));
+</script>
+
+<!-- pinyin-pro：把中文字轉成帶聲調的拼音，供下面的「全站中文自動注音」功能使用 -->
+<script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.28.2/dist/index.js"></script>
+<script>
+/* ===================== DATA（找不到雲端資料時的預設值，離線也能玩） ===================== */
+const DEFAULT_WORDS = [
+  {en:"swing", zh:"鞦韆", zhu:"ㄑㄧㄡ ㄑㄧㄢ", em:"🛝", category:"park"},
+  {en:"bird",  zh:"鳥",   zhu:"ㄋㄧㄠˇ",      em:"🐦", category:"park"},
+  {en:"tree",  zh:"樹",   zhu:"ㄕㄨˋ",       em:"🌳", category:"park"},
+  {en:"ball",  zh:"球",   zhu:"ㄑㄧㄡˊ",      em:"⚽", category:"park"},
+  {en:"kite",  zh:"風箏", zhu:"ㄈㄥ ㄓㄥ",     em:"🪁", category:"park"},
+];
+/* 分類（用趣味化名稱顯示，跟原始課本單元名稱脫鉤，不會讓使用者看出是哪本課本、第幾課做出來的） */
+const CATEGORY_META = [
+  {id:'park', icon:'🏞️', label:'公園探險'},
+  {id:'neighborhood', icon:'🏘️', label:'社區小偵探'},
+  {id:'places', icon:'🗺️', label:'假日去哪裡'},
+  {id:'seasons', icon:'🍁', label:'四季變化'},
+  {id:'ocean', icon:'🌊', label:'海洋世界'},
+  {id:'fairytale', icon:'🏰', label:'童話城堡'},
+  {id:'jobs', icon:'👷', label:'長大後我想當'},
+  {id:'restaurant', icon:'🍽️', label:'餐廳點餐'},
+  {id:'store', icon:'🛍️', label:'百貨公司'},
+  {id:'sports', icon:'⚽', label:'運動遊戲'},
+  {id:'grader', icon:'🎒', label:'一年級小新鮮人'},
+  {id:'phonics1', icon:'🔤', label:'短母音拼讀'},
+  {id:'phonics2', icon:'🔤', label:'進階拼音挑戰'},
+  {id:'friends', icon:'🤝', label:'交新朋友'},
+  {id:'birthday', icon:'🎂', label:'我的生日'},
+  {id:'lunch', icon:'🍱', label:'學校午餐'},
+  {id:'classroom', icon:'🏫', label:'教室生活'},
+  {id:'body', icon:'🙆', label:'身體動一動'},
+  {id:'pets', icon:'🐾', label:'我的寵物'},
+  {id:'animals', icon:'🦁', label:'動物朋友'},
+  {id:'spring', icon:'🌱', label:'春天來了'},
+  {id:'family', icon:'👨‍👩‍👧', label:'我的家人'},
+  {id:'home', icon:'🏠', label:'在家裡'},
+  {id:'halloween', icon:'🎃', label:'萬聖節'},
+  {id:'christmas', icon:'🎄', label:'聖誕節'},
+  {id:'cny', icon:'🧧', label:'新年到'},
+  {id:'mothersday', icon:'💐', label:'母親節'},
+  {id:'dragonboat', icon:'🐉', label:'端午節'},
+  {id:'alphabet', icon:'🔡', label:'26個字母'},
+];
+function categoryMeta(id){ return CATEGORY_META.find(c=>c.id===id) || {id, icon:'📘', label:'其他單字'}; }
+const DIFF_SIZES = {easy:5, medium:7, hard:10};
+/* 自然發音功能：字母發音音檔已經備妥（audio/phonics/、audio/alphabet/），正式開放。 */
+const PHONICS_ENABLED = true;
+const DEFAULT_TEXT = {
+  "app.title": "幼稚園單字樂園",
+  "app.subtitle": "選一個主題，開始學英文！",
+  "diff.easy": "😊 簡單（5個）",
+  "diff.medium": "🙂 中等（7個）",
+  "diff.hard": "💪 挑戰（10個）",
+  "speed.label": "🎚️ 語速",
+  "speed.slow": "🐢 慢",
+  "speed.normal": "🙂 正常",
+  "speed.fast": "🐇 快",
+  "nav.home": "首頁",
+  "nav.flashcard": "單字卡",
+  "nav.matching": "配對",
+  "nav.quiz": "測驗",
+  "nav.spelling": "拼字",
+  "nav.phonics": "自然發音",
+  "home.greeting": "Hi！準備好練習了嗎？",
+  "home.intro": "先選難度，再挑一個主題，我們開始練習吧 😊",
+  "home.card1.title": "單字卡", "home.card1.desc": "圖片＋發音朗讀",
+  "home.card2.title": "配對遊戲", "home.card2.desc": "英文配圖片",
+  "home.card3.title": "選擇題測驗", "home.card3.desc": "看中文／聽發音",
+  "home.card4.title": "拼字遊戲", "home.card4.desc": "組出正確英文單字",
+  "home.card5.title": "翻卡記憶配對", "home.card5.desc": "考驗記憶力，全部配對成功過關！",
+  "home.card6.title": "自然發音", "home.card6.desc": "認讀字母＋聽發音拼字",
+  "home.footer": "🎨 圖片為示意用的卡通圖示（無版權疑慮），正式版將改為委製插畫或有授權的卡通素材，風格可對齊課本。",
+  "flashcard.hint": "點卡片或藍色 🔊 播放英文發音；點粉紅色「中」播放中文發音",
+  "flashcard.learnedTag": "已學會 ✓",
+  "flashcard.learnedBtn": "標記已學會",
+  "matching.title": "🔗 配對遊戲",
+  "matching.sub": "先點左邊英文單字，再點右邊對應的圖片！",
+  "quiz.title": "📝 選擇題測驗",
+  "quiz.modeZh": "👀 看中文選英文",
+  "quiz.modeAudio": "👂 聽發音選圖片",
+  "spelling.title": "🔤 拼字遊戲",
+  "spelling.sub": "看圖片和中文，把字母排成正確的英文單字",
+  "spelling.clear": "⬅️ 退一格",
+  "spelling.submit": "送出答案",
+  "memory.title": "🧠 翻卡記憶配對",
+  "memory.sub": "翻開兩張卡，找出圖片與英文單字的配對！",
+  "phonics.title": "🔡 自然發音",
+  "phonics.alphabetHint": "點一個字母，聽聽看它的聲音！",
+  "phonics.wordTitle": "👻 陰影拼字挑戰",
+  "phonics.wordHint": "看提示的淡淡字母，把正確字母排進去，點字母還會聽到它的發音喔！",
+  "btn.restart": "🔄 重新開始",
+  "pass.close": "繼續",
+  "intro.flashcard": "來看單字卡，點一下卡片就可以聽發音喔！",
+  "intro.matching": "來把單字跟圖片連在一起吧！",
+  "intro.quiz": "選出正確答案，考考你認不認得這些單字！",
+  "intro.spelling": "看看圖片，把字母排成正確的英文單字吧！",
+  "intro.memory": "翻開兩張卡片，找出一樣的配對！",
+  "intro.phonics": "來認識字母的聲音，一起唸唸看吧！",
+  "intro.category": "我們開始練習吧！",
+};
+const FS_KEYS = ['title','subtitle','body','home','flashcard','matching','quiz','spelling','memory'];
+const FS_LABELS = {
+  title:'標題', subtitle:'副標題', body:'一般說明文字',
+  home:'首頁區塊', flashcard:'單字卡區塊', matching:'配對區塊',
+  quiz:'測驗區塊', spelling:'拼字區塊', memory:'記憶配對區塊'
+};
+function defaultFontScale(){
+  const o = {}; FS_KEYS.forEach(k=> o[k]=1); return o;
+}
+
+let WORDS = DEFAULT_WORDS.slice();
+let TEXT = Object.assign({}, DEFAULT_TEXT);
+let FONT_SCALE = defaultFontScale();
+
+/* ===================== 分類／難度／小組（回合）系統 =====================
+   單字量大之後不能整包丟給小孩玩，這裡把「目前要練習的單字」縮小成一個小組（ROUND_WORDS），
+   依「分類」＋「難度（決定每組幾個字）」＋「目前練到第幾組」三個條件從 WORDS 裡篩出來。
+   5 歲小孩的專注力最適合一次 5~8 個字，所以每組字數採用 DIFF_SIZES 裡的設定。 */
+let difficulty = 'easy';
+let currentCategoryId = null;
+let roundOffset = 0;
+let ROUND_WORDS = [];
+
+function getCategoryWords(catId){
+  return WORDS.filter(w => (w.category || 'park') === catId);
+}
+function roundSize(){ return DIFF_SIZES[difficulty] || 5; }
+function ensureDefaultCategory(){
+  const stillHasWords = currentCategoryId && getCategoryWords(currentCategoryId).length > 0;
+  if(stillHasWords) return;
+  const firstWithWords = CATEGORY_META.find(c => getCategoryWords(c.id).length > 0);
+  currentCategoryId = firstWithWords ? firstWithWords.id : ((WORDS[0] && WORDS[0].category) || 'park');
+  roundOffset = 0;
+}
+function getRoundWords(){
+  ensureDefaultCategory();
+  const catWords = getCategoryWords(currentCategoryId);
+  if(!catWords.length) return WORDS.slice(0, roundSize()); // 保底：萬一分類真的是空的
+  const size = roundSize();
+  if(roundOffset >= catWords.length) roundOffset = 0;
+  let slice = catWords.slice(roundOffset, roundOffset + size);
+  if(!slice.length){ roundOffset = 0; slice = catWords.slice(0, size); }
+  return slice;
+}
+
+let totalScore = 0;
+/* totalScore 只給每個小遊戲畫面下方的「得分 xx」數字用；右上角的獎勵改成「星星飛進寶箱」，
+   在 celebrateCorrect() 裡另外用 starCount 計算，兩套數字彼此獨立 */
+function addScore(n){ totalScore += n; }
+
+/* 語速控制：改成烏龜～兔子的拖曳滑桿，讓小孩自己拖，越靠近烏龜越慢、越靠近兔子越快，
+   方便模仿跟讀。滑桿數值 60~140 直接對應到 0.6x~1.4x 的語速倍率，
+   套用到本機音檔（playbackRate）跟瀏覽器備援語音（rate）兩種播放方式。 */
+let speedRate = 1.0;
+const speedSlider = document.getElementById('speedSlider');
+if(speedSlider){
+  speedSlider.addEventListener('input', ()=>{
+    speedRate = parseInt(speedSlider.value, 10) / 100;
+  });
+}
+
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+
+/* ===================== 注音手動排版元件 =====================
+   瀏覽器對 ruby-position: inter-character（直式注音的標準排法）幾乎沒有支援，
+   原生 <ruby>/<rt> 排不出「聲介韻疊同一欄＋聲調貼最後一個字母」的效果，所以自己排版。
+   輸入格式：[[國字, 注音字串], ...]，例如 [["鞦","ㄑㄧㄡ"],["韆","ㄑㄧㄢ"]]
+   輸出：可直接塞進 innerHTML 的 HTML 字串。 */
+const ZY_TONE_MARKS = ['ˊ','ˇ','ˋ'];
+const ZY_NEUTRAL = '˙';
+
+function parseZhuyinSyllable(zhu){
+  let s = zhu || '';
+  let neutral = false;
+  if(s[0] === ZY_NEUTRAL){ neutral = true; s = s.slice(1); }
+  let tone = '';
+  const last = s.slice(-1);
+  if(ZY_TONE_MARKS.includes(last)){ tone = last; s = s.slice(0, -1); }
+  return { letters: s.split(''), tone, neutral };
+}
+
+/* 單一字的注音排版（國字＋直式注音欄），renderZhuyin（精選單字用）跟下面的自動注音功能共用同一份，
+   確保兩邊排版規則完全一致，不會分歧出兩套視覺效果 */
+function zySyllableSpan(han, zhu){
+  const p = parseZhuyinSyllable(zhu);
+  let col = '';
+  if(p.neutral) col += `<span class="zy-neutral">˙</span>`;
+  p.letters.forEach((ch, i)=>{
+    const isLast = i === p.letters.length - 1;
+    if(isLast && p.tone){
+      col += `<span class="zy-letter-tone"><span class="zy-letter">${ch}</span><span class="zy-tone">${p.tone}</span></span>`;
+    } else {
+      col += `<span class="zy-letter">${ch}</span>`;
+    }
+  });
+  return `<span class="zy-syllable"><span class="zy-han">${han}</span><span class="zy-col">${col}</span></span>`;
+}
+function renderZhuyin(pairs){
+  return pairs.map(([han, zhu])=> zySyllableSpan(han, zhu)).join('');
+}
+
+/* 把單字資料的 zh（"鞦韆"）+ zhu（"ㄑㄧㄡ ㄑㄧㄢ"，每字用空格分隔）轉成 renderZhuyin 要的 pairs 格式 */
+function zhuyinPairsFromWord(w){
+  const chars = Array.from(w.zh || '');
+  const zhuParts = (w.zhu || '').split(' ').filter(Boolean);
+  return chars.map((ch, i)=> [ch, zhuParts[i] || '']);
+}
+
+/* ===================== 全站中文自動注音（Auto Zhuyin Annotator） =====================
+   目的：讓頁面上「所有」中文文字（標題、按鈕、說明文字…）都自動加注音，不用每個地方手動填 zhu 資料。
+   做法：
+   1. 用 pinyin-pro（CDN 載入，全域變數 window.pinyinPro）把中文字轉成帶聲調符號的拼音（type:'array'，逐字對齊）
+   2. 用下面的對照表把拼音轉成注音符號（改寫自 MIT 授權的 pinyin-zhuyin 套件邏輯：
+      https://github.com/peterolson/pinyin-zhuyin）
+   3. 用 TreeWalker 掃描頁面文字節點，找出含中文字的節點，排除 script/style/input/select/option/textarea，
+      也排除本來就已經有精選注音（.zy-display，例如單字卡、測驗題目的注音）的區域，避免疊加兩次注音
+   4. 每個中文字組成 <span class="zy-display zy-auto">…</span>，跟精選注音共用同一套排版元件（zySyllableSpan）
+   5. class「zy-display」本身就是已處理過的標記：文字節點一旦被包成 zy-display，之後重新掃描時，
+      因為它的祖先元素已經有 .zy-display，會被直接跳過，不會疊加兩次
+   6. 用 MutationObserver 監看畫面內容變化（切換頁籤、分數更新、換題目、大人改文字…），有變動就自動重新掃描一次
+   7. 有些詞組合在一起會被自動判斷成錯誤的斷詞／聲調（例如「看中文」的「中」會被誤判成第四聲），
+      這裡用一個小型修正表，在轉拼音之前插入不可見的分隔字元，幫助正確斷詞 */
+const ZY_INITIALS = {b:'ㄅ',p:'ㄆ',m:'ㄇ',f:'ㄈ',d:'ㄉ',t:'ㄊ',n:'ㄋ',l:'ㄌ',g:'ㄍ',k:'ㄎ',h:'ㄏ',j:'ㄐ',q:'ㄑ',x:'ㄒ',zh:'ㄓ',ch:'ㄔ',sh:'ㄕ',r:'ㄖ',z:'ㄗ',c:'ㄘ',s:'ㄙ'};
+const ZY_FINALS = {a:'ㄚ',o:'ㄛ',e:'ㄜ',ai:'ㄞ',ei:'ㄟ',ao:'ㄠ',ou:'ㄡ',an:'ㄢ',ang:'ㄤ',en:'ㄣ',eng:'ㄥ',er:'ㄦ',u:'ㄨ',ua:'ㄨㄚ',uo:'ㄨㄛ',uai:'ㄨㄞ',ui:'ㄨㄟ',uan:'ㄨㄢ',uang:'ㄨㄤ',un:'ㄨㄣ',ueng:'ㄨㄥ',ong:'ㄨㄥ',i:'ㄧ',ia:'ㄧㄚ',ie:'ㄧㄝ',iao:'ㄧㄠ',iu:'ㄧㄡ',ian:'ㄧㄢ',iang:'ㄧㄤ',in:'ㄧㄣ',ing:'ㄧㄥ','ü':'ㄩ','üe':'ㄩㄝ',ue:'ㄩㄝ','üan':'ㄩㄢ','ün':'ㄩㄣ',iong:'ㄩㄥ'};
+const ZY_INDIVIDUALS = {zhi:'ㄓ',chi:'ㄔ',shi:'ㄕ',ri:'ㄖ',zi:'ㄗ',ci:'ㄘ',si:'ㄙ',a:'ㄚ',o:'ㄛ',e:'ㄜ',ai:'ㄞ',ei:'ㄟ',ao:'ㄠ',ou:'ㄡ',an:'ㄢ',ang:'ㄤ',en:'ㄣ',eng:'ㄥ',er:'ㄦ',r:'ㄦ',wu:'ㄨ',wa:'ㄨㄚ',wo:'ㄨㄛ',wai:'ㄨㄞ',wei:'ㄨㄟ',wan:'ㄨㄢ',wang:'ㄨㄤ',wen:'ㄨㄣ',weng:'ㄨㄥ',yi:'ㄧ',ya:'ㄧㄚ',ye:'ㄧㄝ',yao:'ㄧㄠ',you:'ㄧㄡ',yan:'ㄧㄢ',yang:'ㄧㄤ',yin:'ㄧㄣ',ying:'ㄧㄥ',yu:'ㄩ',yue:'ㄩㄝ',yuan:'ㄩㄢ',yun:'ㄩㄣ',yong:'ㄩㄥ'};
+const ZY_TONE_ACCENT = {'ā':'a1','á':'a2','ǎ':'a3','à':'a4','ē':'e1','é':'e2','ě':'e3','è':'e4','ī':'i1','í':'i2','ǐ':'i3','ì':'i4','ō':'o1','ó':'o2','ǒ':'o3','ò':'o4','ū':'u1','ú':'u2','ǔ':'u3','ù':'u4','ǖ':'ü1','ǘ':'ü2','ǚ':'ü3','ǜ':'ü4'};
+const ZY_TONE_NUM_TO_SYMBOL = {0:'˙',1:'',2:'ˊ',3:'ˇ',4:'ˋ',5:'˙'};
+function zyLenComp(a,b){ return a.length===b.length ? 0 : (a.length<b.length?1:-1); }
+const ZY_INDIVIDUAL_RE = new RegExp('^('+Object.keys(ZY_INDIVIDUALS).sort(zyLenComp).join('|')+')(\\d)?','i');
+const ZY_INITIAL_FINAL_RE = new RegExp('^('+Object.keys(ZY_INITIALS).sort(zyLenComp).join('|')+')('+Object.keys(ZY_FINALS).sort(zyLenComp).join('|')+')(\\d)?','i');
+/* 已知會被誤判斷詞的詞組，插入零寬字元幫助正確斷詞（不影響畫面顯示） */
+const ZY_WORD_BREAK_HINTS = ['看中文'];
+function zyApplyWordBreakHints(text){
+  let out = text;
+  ZY_WORD_BREAK_HINTS.forEach(w=>{
+    if(w.length<2) return;
+    out = out.split(w).join(w[0] + '​' + w.slice(1));
+  });
+  return out;
+}
+
+/* 拼音（可含聲調符號，例如 "qiū"）→ 注音符號（例如 "ㄑㄧㄡ"，含聲調） */
+function pinyinToZhuyin(pinyinText){
+  if(!pinyinText) return pinyinText;
+  const accented = {};
+  for(let i=0;i<pinyinText.length;i++){
+    const lower = pinyinText[i].toLowerCase();
+    if(ZY_TONE_ACCENT[lower]) accented[i] = pinyinText[i]===lower ? ZY_TONE_ACCENT[lower] : ZY_TONE_ACCENT[lower].toUpperCase();
+  }
+  const idxList = Object.keys(accented).map(x=>parseInt(x,10));
+  let text = '';
+  for(let i=0;i<pinyinText.length;i++) text += (i in accented) ? accented[i][0] : pinyinText[i];
+  function findBetween(min,max){ for(const v of idxList){ if(v>max) break; if(v>=min) return v; } return -1; }
+  function parseToken(i){
+    const rest = text.slice(i);
+    let m = rest.match(ZY_INITIAL_FINAL_RE);
+    if(m){
+      const initial = m[1].toLowerCase(), final = m[2].toLowerCase();
+      const zhuyin = ZY_INITIALS[initial] + ZY_FINALS[final];
+      let tone;
+      if(typeof m[3] !== 'undefined') tone = parseInt(m[3],10);
+      else { const ai = findBetween(i, i+m[0].length); tone = ai>=0 ? +accented[ai][1] : 5; }
+      return { zhuyin, tone, len: m[0].length };
+    }
+    m = rest.match(ZY_INDIVIDUAL_RE);
+    if(m){
+      const key = m[1].toLowerCase();
+      const zhuyin = ZY_INDIVIDUALS[key];
+      let tone;
+      if(typeof m[2] !== 'undefined') tone = parseInt(m[2],10);
+      else { const ai = findBetween(i, i+m[0].length); tone = ai>=0 ? +accented[ai][1] : 5; }
+      return { zhuyin, tone, len: m[0].length };
+    }
+    return { other: text[i], len: 1 };
+  }
+  let out = '', i = 0;
+  while(i < text.length){
+    const t = parseToken(i);
+    out += t.other!==undefined ? t.other : (t.zhuyin + ZY_TONE_NUM_TO_SYMBOL[t.tone]);
+    i += t.len;
+  }
+  out = out
+    .replace(/ㄐㄨ/g,'ㄐㄩ').replace(/ㄑㄨ/g,'ㄑㄩ').replace(/ㄒㄨ/g,'ㄒㄩ')
+    .replace(/ㄓㄧ/g,'ㄓ').replace(/ㄔㄧ/g,'ㄔ').replace(/ㄕㄧ/g,'ㄕ').replace(/ㄖㄧ/g,'ㄖ')
+    .replace(/ㄗㄧ/g,'ㄗ').replace(/ㄘㄧ/g,'ㄘ').replace(/ㄙㄧ/g,'ㄙ');
+  // 輕聲符號改放最前面，跟精選注音元件 parseZhuyinSyllable 的格式一致（輕聲˙寫在最前面）
+  if(out.endsWith(ZY_NEUTRAL)) out = ZY_NEUTRAL + out.slice(0, -1);
+  return out;
+}
+
+const ZY_HANZI_RE = /[一-鿿㐀-䶿]/;
+const ZY_SKIP_TAGS = new Set(['SCRIPT','STYLE','INPUT','SELECT','OPTION','TEXTAREA']);
+function zyEscapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function zyShouldSkip(el){
+  if(!el) return true;
+  if(ZY_SKIP_TAGS.has(el.tagName)) return true;
+  if(el.closest('.zy-display')) return true; // 已經有注音的區域（精選或先前自動產生的），不要重複疊加
+  return false;
+}
+/* 把一段文字（可能中英文數字混雜）轉成 HTML：中文字疊上注音，其他字（英文、數字、標點、空白）原樣輸出 */
+function buildAutoZhuyinHTML(text){
+  if(!window.pinyinPro) return null;
+  const hinted = zyApplyWordBreakHints(text);
+  const chars = Array.from(hinted);
+  const pinyinArr = window.pinyinPro.pinyin(hinted, {type:'array', toneType:'symbol'});
+  if(pinyinArr.length !== chars.length) return null; // 對不齊就放棄，避免顯示錯亂
+  let html = '';
+  for(let i=0;i<chars.length;i++){
+    const ch = chars[i];
+    if(ch === '​') continue; // 斷詞用的隱形字元，不輸出
+    if(ZY_HANZI_RE.test(ch)) html += zySyllableSpan(ch, pinyinToZhuyin(pinyinArr[i] || ''));
+    else html += zyEscapeHtml(ch);
+  }
+  return html;
+}
+function zyHtmlToFragment(html){
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  return tpl.content;
+}
+function annotateZhuyin(root){
+  if(!window.pinyinPro) return; // 語音套件還沒載入完成就先不處理，等下一次掃描再補上
+  root = root || document.getElementById('app');
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node){
+      if(!ZY_HANZI_RE.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+      if(zyShouldSkip(node.parentElement)) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const targets = [];
+  let n;
+  while((n = walker.nextNode())) targets.push(n);
+  targets.forEach(textNode=>{
+    const inner = buildAutoZhuyinHTML(textNode.nodeValue);
+    if(inner === null) return;
+    const frag = zyHtmlToFragment('<span class="zy-display zy-auto">'+inner+'</span>');
+    textNode.parentNode.replaceChild(frag, textNode);
+  });
+}
+/* 內容變動（切換遊戲頁籤、分數更新、換下一題、大人改文字…）時，自動重新掃描一次，避免動態產生的中文沒有注音 */
+let zyScanQueued = false;
+const zyObserver = new MutationObserver(()=>{
+  if(zyScanQueued) return;
+  zyScanQueued = true;
+  requestAnimationFrame(()=>{
+    zyScanQueued = false;
+    zyObserver.disconnect();
+    annotateZhuyin();
+    zyObserver.observe(document.getElementById('app'), {childList:true, subtree:true, characterData:true});
+  });
+});
+function initAutoZhuyin(){
+  annotateZhuyin();
+  zyObserver.observe(document.getElementById('app'), {childList:true, subtree:true, characterData:true});
+}
+
+/* 挑選裝置上最自然的英文語音（瀏覽器內建，優先選 Neural / Online / Natural / Google 高品質語音） */
+let bestVoice = null;
+function pickBestVoice(){
+  if(!('speechSynthesis' in window)) return null;
+  const voices = window.speechSynthesis.getVoices();
+  if(!voices.length) return null;
+  const nameRank = [
+    /Google US English/i, /Microsoft \w+ Online \(Natural\)/i, /Microsoft \w+ Neural/i,
+    /Samantha/i, /Karen/i, /Moira/i, /Google UK English Female/i
+  ];
+  for(const re of nameRank){
+    const v = voices.find(v=>re.test(v.name) && /^en/i.test(v.lang));
+    if(v) return v;
+  }
+  const naturalEn = voices.find(v=>/^en/i.test(v.lang) && /natural|neural|online|premium|enhanced/i.test(v.name));
+  if(naturalEn) return naturalEn;
+  const enUS = voices.find(v=>v.lang==='en-US');
+  if(enUS) return enUS;
+  return voices.find(v=>/^en/i.test(v.lang)) || voices[0];
+}
+if('speechSynthesis' in window){
+  bestVoice = pickBestVoice();
+  window.speechSynthesis.onvoiceschanged = ()=>{ bestVoice = pickBestVoice(); };
+}
+function speakBrowserTTS(text){
+  if(!('speechSynthesis' in window)){ console.warn('此瀏覽器不支援語音朗讀'); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US'; u.rate = 0.85 * speedRate; u.pitch = 1.05;
+  if(bestVoice) u.voice = bestVoice;
+  window.speechSynthesis.speak(u);
+}
+
+/* 自然發音（Phonics）字母讀音：優先播放 audio/phonics/ 資料夾裡的真人錄音（例如 s.mp3 唸 /s/ 的聲音），
+   找不到檔案才退回瀏覽器語音朗讀的近似拼音（例如 s→sss、b→buh）當備援，確保一定會有聲音。 */
+const PHONICS_SOUND = {
+  a:'ah', b:'buh', c:'kuh', d:'duh', e:'eh', f:'fff', g:'guh', h:'huh',
+  i:'ih', j:'juh', k:'kuh', l:'lll', m:'mmm', n:'nnn', o:'ah', p:'puh',
+  q:'kwuh', r:'rrr', s:'sss', t:'tuh', u:'uh', v:'vvv', w:'wuh', x:'ks',
+  y:'yuh', z:'zzz'
+};
+function speakPhonicsApprox(letter){
+  if(!('speechSynthesis' in window)){ console.warn('此瀏覽器不支援語音朗讀'); return; }
+  const ch = letter.toLowerCase();
+  const soundText = PHONICS_SOUND[ch] || ch;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(soundText);
+  u.lang = 'en-US'; u.rate = 0.7 * speedRate; u.pitch = 1.1;
+  if(bestVoice) u.voice = bestVoice;
+  window.speechSynthesis.speak(u);
+}
+function playPhonicsSound(letter){
+  const ch = letter.toLowerCase();
+  playLocalAudio('audio/phonics/' + ch + '.mp3', ()=> speakPhonicsApprox(ch));
+}
+/* 拼字遊戲點字母磚時播放的「字母名稱」讀音（例如 b 唸成英文字母 B 的名字，不是 /b/ 的自然發音），
+   優先播放 audio/alphabet/ 資料夾裡的真人錄音，找不到才退回瀏覽器語音朗讀字母名稱。 */
+function speakAlphabetApprox(letter){
+  if(!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(letter.toUpperCase());
+  u.lang = 'en-US'; u.rate = 0.7 * speedRate; u.pitch = 1.05;
+  if(bestVoice) u.voice = bestVoice;
+  window.speechSynthesis.speak(u);
+}
+function playAlphabetSound(letter){
+  const ch = letter.toLowerCase();
+  playLocalAudio('audio/alphabet/' + ch + '.mp3', ()=> speakAlphabetApprox(ch));
+}
+
+/* ===================== 答對／答錯的音效與鼓勵回饋 =====================
+   答對：用 Web Audio 即時合成一個上揚的小和弦音效（不需要額外音檔、不會有版權問題），
+   再加上畫面星星特效＋隨機一句鼓勵語音，讓小孩清楚感覺到「我答對了」。
+   答錯：只給一個低沉、柔和、不刺耳的提示音＋溫和語音（例如「再試一次喔」），
+   刻意不用尖銳警報聲，避免讓孩子有挫折感。 */
+let audioCtx = null;
+function getAudioCtx(){
+  if(!audioCtx){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(AC) audioCtx = new AC();
+  }
+  return audioCtx;
+}
+function playTone(freq, startTime, duration, gainPeak){
+  const ctx = getAudioCtx();
+  if(!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, startTime);
+  gain.gain.linearRampToValueAtTime(gainPeak, startTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(startTime); osc.stop(startTime + duration + 0.05);
+}
+function playCorrectChime(){
+  const ctx = getAudioCtx();
+  if(!ctx) return;
+  const t0 = ctx.currentTime;
+  playTone(523.25, t0, 0.18, 0.22);      // C5
+  playTone(659.25, t0 + 0.1, 0.18, 0.22); // E5
+  playTone(783.99, t0 + 0.2, 0.32, 0.22); // G5，尾音拉長，聽起來像小小的歡呼
+}
+function playGentleRetryChime(){
+  const ctx = getAudioCtx();
+  if(!ctx) return;
+  const t0 = ctx.currentTime;
+  playTone(392.0, t0, 0.22, 0.14);       // G4，音量刻意比答對音效小、音高比較低，聽起來溫和不刺耳
+  playTone(349.23, t0 + 0.16, 0.28, 0.12); // F4
+}
+const ENCOURAGE_PHRASES = ['棒棒！','太棒了！','你好厲害！','答對囉！','做得好！','你真聰明！'];
+const RETRY_PHRASES = ['再試一次喔','沒關係，再想想','快答對了，加油'];
+/* targetEl：要冒星星特效的元素；speakPraise：是否唸出鼓勵語音（如果緊接著要唸單字發音，
+   就傳 false 避免兩段語音互相打斷） */
+function celebrateCorrect(targetEl, speakPraise){
+  playCorrectChime();
+  if(speakPraise !== false){
+    const phrase = ENCOURAGE_PHRASES[Math.floor(Math.random()*ENCOURAGE_PHRASES.length)];
+    speakBrowserTTSZh(phrase);
+  }
+  if(targetEl){
+    burstStars(targetEl);
+    flyStarToChest(targetEl);
+  } else {
+    incrementStars(); // 沒有明確元素位置時（理論上不會發生），至少星星數還是要加
+  }
+}
+function gentleRetry(speakPhrase){
+  playGentleRetryChime();
+  if(speakPhrase !== false){
+    const phrase = RETRY_PHRASES[Math.floor(Math.random()*RETRY_PHRASES.length)];
+    speakBrowserTTSZh(phrase);
+  }
+}
+function burstStars(targetEl){
+  if(!targetEl || !targetEl.getBoundingClientRect) return;
+  const rect = targetEl.getBoundingClientRect();
+  const cx = rect.left + rect.width/2;
+  const cy = rect.top + rect.height/2;
+  const emojis = ['⭐','✨','🌟'];
+  for(let i=0;i<8;i++){
+    const s = document.createElement('div');
+    s.className = 'mini-star';
+    s.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+    const angle = Math.random()*Math.PI*2;
+    const dist = 40 + Math.random()*40;
+    s.style.left = cx + 'px';
+    s.style.top = cy + 'px';
+    s.style.setProperty('--dx', Math.cos(angle)*dist + 'px');
+    s.style.setProperty('--dy', Math.sin(angle)*dist + 'px');
+    document.body.appendChild(s);
+    setTimeout(()=> s.remove(), 700);
+  }
+}
+
+/* ===================== 星星寶箱與獎章收藏 =====================
+   每答對一題，除了原本的星星特效外，另外從答對的地方飛一顆星星到右上角的寶箱圖示，
+   寶箱會跳一下、星星數字加一，比單純看數字跳動更有「拿到獎勵」的實體感。
+   累積到特定顆數會解鎖一個可愛小角色／獎章，用彈窗慶祝並收進收藏面板。 */
+let starCount = 0;
+const BADGE_MILESTONES = [
+  {count:10,  icon:'🐣', name:'小雞寶寶'},
+  {count:25,  icon:'🐥', name:'黃色小鴨'},
+  {count:50,  icon:'🐰', name:'兔子朋友'},
+  {count:100, icon:'🦄', name:'夢幻獨角獸'},
+  {count:200, icon:'🐉', name:'幸運小龍'},
+  {count:400, icon:'👑', name:'單字小達人'},
+];
+let unlockedBadges = new Set();
+function flyStarToChest(fromEl){
+  const chest = document.getElementById('scoreBadge');
+  if(!fromEl || !chest || !fromEl.getBoundingClientRect){ incrementStars(); return; }
+  const fromRect = fromEl.getBoundingClientRect();
+  const toRect = chest.getBoundingClientRect();
+  const star = document.createElement('div');
+  star.className = 'flying-star';
+  star.textContent = '⭐';
+  const fromX = fromRect.left + fromRect.width/2;
+  const fromY = fromRect.top + fromRect.height/2;
+  const dx = (toRect.left + toRect.width/2) - fromX;
+  const dy = (toRect.top + toRect.height/2) - fromY;
+  star.style.left = fromX + 'px';
+  star.style.top = fromY + 'px';
+  star.style.setProperty('--fly-dx', dx + 'px');
+  star.style.setProperty('--fly-dy', dy + 'px');
+  document.body.appendChild(star);
+  let landed = false;
+  const land = ()=>{
+    if(landed) return;
+    landed = true;
+    star.remove();
+    chest.classList.remove('bounce'); void chest.offsetWidth; chest.classList.add('bounce');
+    incrementStars();
+  };
+  star.addEventListener('animationend', land, {once:true});
+  setTimeout(land, 700); // 保險：萬一動畫事件沒觸發（例如測試環境），還是要記到星星數
+}
+function incrementStars(){
+  starCount++;
+  const el = document.getElementById('starVal');
+  if(el) el.textContent = starCount;
+  checkBadgeUnlock();
+  persistProgress();
+}
+function checkBadgeUnlock(){
+  BADGE_MILESTONES.forEach(b=>{
+    if(starCount >= b.count && !unlockedBadges.has(b.count)){
+      unlockedBadges.add(b.count);
+      setTimeout(()=> showBadgeUnlock(b), 500);
+    }
+  });
+}
+function showBadgeUnlock(b){
+  document.getElementById('badgeUnlockIcon').textContent = b.icon;
+  document.getElementById('badgeUnlockName').textContent = b.name + '（集滿 '+b.count+' 顆星星解鎖）';
+  document.getElementById('badgeUnlockOverlay').classList.add('show');
+}
+document.getElementById('badgeUnlockClose').onclick = ()=>{
+  document.getElementById('badgeUnlockOverlay').classList.remove('show');
+};
+function renderBadgeShelf(){
+  document.getElementById('badgeShelfStars').textContent = starCount;
+  const grid = document.getElementById('badgeShelfGrid');
+  grid.innerHTML = '';
+  BADGE_MILESTONES.forEach(b=>{
+    const unlocked = unlockedBadges.has(b.count);
+    const item = document.createElement('div');
+    item.className = 'badge-item' + (unlocked ? ' unlocked' : '');
+    item.innerHTML = `<span class="bi-icon">${unlocked ? b.icon : '🔒'}</span><span>${unlocked ? b.name : '未解鎖'}</span><span class="bi-count">${b.count} 顆</span>`;
+    grid.appendChild(item);
+  });
+}
+document.getElementById('scoreBadge').onclick = ()=>{
+  renderBadgeShelf();
+  openModal('badgeShelfModal');
+};
+
+/* ===================== 跨裝置進度同步（星星／獎章／練習到哪個主題第幾組） =====================
+   小孩不用登入帳號，改用一組存在這台裝置瀏覽器裡的短代碼當作識別。換裝置想接續，
+   在新裝置輸入同一組代碼，就會從 Firestore 讀回同一份星星／獎章／進度。
+   代碼故意不用容易搞混的 0/O/1/I，6 碼組合已經足夠一個家庭內部使用，不是拿來做嚴謹帳號安全用的。 */
+const PROGRESS_STORAGE_KEY = 'vigorVocabProgressCode';
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+let progressCode = null;
+try{ progressCode = localStorage.getItem(PROGRESS_STORAGE_KEY) || null; }catch(e){ /* 無痕模式等情況可能不能用 localStorage，退回沒有跨裝置同步就好 */ }
+function generateProgressCode(){
+  let code = '';
+  for(let i=0;i<6;i++) code += CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)];
+  return code;
+}
+function ensureProgressCode(){
+  if(!progressCode){
+    progressCode = generateProgressCode();
+    try{ localStorage.setItem(PROGRESS_STORAGE_KEY, progressCode); }catch(e){}
+  }
+  updateProgressCodeUI();
+  return progressCode;
+}
+function updateProgressCodeUI(){
+  const mini = document.getElementById('progressCodeMini');
+  if(mini) mini.textContent = progressCode || '------';
+  const display = document.getElementById('progressCodeDisplay');
+  if(display) display.textContent = progressCode || '------';
+}
+ensureProgressCode();
+document.getElementById('progressCodeTrigger').onclick = ()=>{
+  document.getElementById('progressCodeErr').textContent = '';
+  document.getElementById('progressCodeInput').value = '';
+  updateProgressCodeUI();
+  openModal('progressCodeModal');
+};
+/* 複製代碼按鈕：優先用系統剪貼簿 API，一鍵複製到剪貼簿；萬一瀏覽器不支援（例如太舊或非 https），
+   就退回「選取文字」的方式，讓家長至少能手動複製，不會完全沒反應 */
+document.getElementById('progressCodeCopy').onclick = async ()=>{
+  const btn = document.getElementById('progressCodeCopy');
+  const codeText = progressCode || '';
+  const showCopied = ()=>{
+    const original = btn.textContent;
+    btn.textContent = '✅ 已複製！';
+    setTimeout(()=>{ btn.textContent = original; }, 1500);
+  };
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(codeText);
+      showCopied();
+    } else {
+      throw new Error('no clipboard api');
+    }
+  }catch(e){
+    // 備援：選取代碼文字，讓使用者自己按 Ctrl+C／長按複製
+    const range = document.createRange();
+    const displayEl = document.getElementById('progressCodeDisplay');
+    range.selectNodeContents(displayEl);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+};
+document.getElementById('progressCodeLink').onclick = async ()=>{
+  const errEl = document.getElementById('progressCodeErr');
+  errEl.textContent = '';
+  const input = document.getElementById('progressCodeInput').value.trim().toUpperCase();
+  if(!input){ errEl.textContent = '請先輸入代碼'; return; }
+  if(!window.FB || !window.FB.getProgress){ errEl.textContent = '連線功能尚未就緒，請稍後再試'; return; }
+  try{
+    const data = await window.FB.getProgress(input);
+    progressCode = input;
+    try{ localStorage.setItem(PROGRESS_STORAGE_KEY, progressCode); }catch(e){}
+    applyProgress(data);
+    refreshRoundWords();
+    renderAllGames();
+    updateProgressCodeUI();
+    closeModal('progressCodeModal');
+  }catch(e){
+    errEl.textContent = '讀取失敗，請確認代碼是否正確，或稍後再試';
+  }
+};
+/* 把星星／獎章／目前練到哪裡存回 Firestore，debounce 一下避免短時間內連續觸發（例如連續答對）就一直寫入 */
+let progressSaveTimer = null;
+function persistProgress(){
+  if(!window.FB || !window.FB.saveProgress || !progressCode) return;
+  clearTimeout(progressSaveTimer);
+  progressSaveTimer = setTimeout(()=>{
+    window.FB.saveProgress(progressCode, {
+      starCount,
+      unlockedBadges: Array.from(unlockedBadges),
+      currentCategoryId,
+      difficulty,
+      roundOffset,
+      updatedAt: Date.now(),
+    }).catch(()=>{ /* 存不上去就先算了，星星還是留在這個瀏覽器裡，不會整個壞掉，下次連線好了會再存 */ });
+  }, 600);
+}
+/* 把從 Firestore 讀回來的進度套用到畫面上（開機時、或輸入別的裝置代碼時都會呼叫） */
+function applyProgress(data){
+  if(!data) return;
+  if(typeof data.starCount === 'number') starCount = data.starCount;
+  if(Array.isArray(data.unlockedBadges)) unlockedBadges = new Set(data.unlockedBadges);
+  if(data.currentCategoryId) currentCategoryId = data.currentCategoryId;
+  if(data.difficulty) difficulty = data.difficulty;
+  if(typeof data.roundOffset === 'number') roundOffset = data.roundOffset;
+  const starEl = document.getElementById('starVal');
+  if(starEl) starEl.textContent = starCount;
+  document.querySelectorAll('#diffToggle button').forEach(b=> b.classList.toggle('active', b.dataset.diff===difficulty));
+}
+
+/* 中文備援語音：挑裝置上的台灣國語/中文語音（找不到本機音檔時才會用到） */
+let bestVoiceZh = null;
+function pickBestVoiceZh(){
+  if(!('speechSynthesis' in window)) return null;
+  const voices = window.speechSynthesis.getVoices();
+  if(!voices.length) return null;
+  return voices.find(v=>/zh-TW/i.test(v.lang)) || voices.find(v=>/^zh/i.test(v.lang)) || null;
+}
+if('speechSynthesis' in window){
+  bestVoiceZh = pickBestVoiceZh();
+  const prevHandler = window.speechSynthesis.onvoiceschanged;
+  window.speechSynthesis.onvoiceschanged = (e)=>{ if(prevHandler) prevHandler(e); bestVoiceZh = pickBestVoiceZh(); };
+}
+function speakBrowserTTSZh(text){
+  if(!('speechSynthesis' in window)){ console.warn('此瀏覽器不支援語音朗讀'); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'zh-TW'; u.rate = 0.85 * speedRate;
+  if(bestVoiceZh) u.voice = bestVoiceZh;
+  window.speechSynthesis.speak(u);
+}
+
+/* 把英文單字轉成跟 tts-scripts/ 產生出來的檔名一致的格式，例如 "hide and seek" -> "hide_and_seek" */
+function slugify(text){
+  return text.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+}
+
+/* 共用：播放本機 mp3，找不到檔案就呼叫 onFail（瀏覽器語音備援），兩種情況使用者都聽得到發音，不會沒有聲音。 */
+function playLocalAudio(src, onFail){
+  const audio = new Audio(src);
+  audio.playbackRate = speedRate;
+  let fallenBack = false;
+  const fallback = ()=>{
+    if(fallenBack) return;
+    fallenBack = true;
+    onFail();
+  };
+  audio.addEventListener('error', fallback, {once:true});
+  // 保險：萬一某些瀏覽器對本機檔案不觸發 error 事件，用逾時再檢查一次
+  const safetyTimer = setTimeout(()=>{ if(audio.readyState===0) fallback(); }, 500);
+  audio.addEventListener('canplay', ()=> clearTimeout(safetyTimer), {once:true});
+  try{
+    const playResult = audio.play();
+    if(playResult && typeof playResult.catch === 'function') playResult.catch(fallback);
+  }catch(e){ fallback(); }
+}
+
+/* 播放「英文」發音：優先播放 audio/ 資料夾裡的真人錄音／雲端語音 mp3（用 tts-scripts 產生後放進來），
+   找不到檔案（還沒產生、或路徑不對）就自動退回瀏覽器內建語音朗讀。 */
+function speak(text){
+  playLocalAudio('audio/' + slugify(text) + '.mp3', ()=> speakBrowserTTS(text));
+}
+
+/* 播放「中文」發音：key 是單字的英文（用來對應檔名，跟英文音檔用同一套命名），zhText 是要唸的中文字。
+   優先播放 audio/zh/ 資料夾裡的 mp3（用 tts-scripts 的 generate-azure-chinese.js 產生後放進來），
+   找不到檔案就退回瀏覽器內建語音朗讀（會盡量挑裝置上的中文語音）。 */
+function speakChinese(key, zhText){
+  playLocalAudio('audio/zh/' + slugify(key) + '.mp3', ()=> speakBrowserTTSZh(zhText));
+}
+
+/* viewName：這一關屬於哪個遊戲畫面（例如 'matching'），用來讓「再玩一次」按鈕知道要重玩哪個遊戲。
+   不傳的話（例如以後有其他用途）就不顯示再玩一次按鈕，只顯示「繼續」。 */
+let passReplayView = null;
+function showPass(title, desc, viewName){
+  document.getElementById('passTitle').textContent = title;
+  document.getElementById('passDesc').textContent = desc;
+  passReplayView = viewName || null;
+  const replayBtn = document.getElementById('passReplay');
+  replayBtn.style.display = passReplayView ? '' : 'none';
+  const overlay = document.getElementById('passOverlay');
+  overlay.querySelectorAll('.confetti').forEach(c=>c.remove());
+  const emojis = ['🎉','⭐','🎈','🏆','✨'];
+  for(let i=0;i<18;i++){
+    const c = document.createElement('div');
+    c.className='confetti';
+    c.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+    c.style.left = Math.random()*100+'%';
+    c.style.animationDuration = (1.4+Math.random()*1.2)+'s';
+    c.style.animationDelay = (Math.random()*.5)+'s';
+    overlay.appendChild(c);
+  }
+  overlay.classList.add('show');
+}
+document.getElementById('passClose').onclick = ()=> document.getElementById('passOverlay').classList.remove('show');
+/* 重玩同一個遊戲：直接呼叫該遊戲對應的 init／render 函式重新出題，不用使用者自己找按鈕、切換畫面 */
+function restartCurrentGame(viewName){
+  if(viewName==='flashcard'){ fcIndex = 0; fcLearned = new Set(); renderFlashcard(); }
+  else if(viewName==='matching') initMatching();
+  else if(viewName==='quiz') initQuiz();
+  else if(viewName==='spelling') initSpelling();
+  else if(viewName==='memory') initMemory();
+  else if(viewName==='phonics') initPhonicsWord();
+}
+document.getElementById('passReplay').onclick = ()=>{
+  document.getElementById('passOverlay').classList.remove('show');
+  if(passReplayView) restartCurrentGame(passReplayView);
+};
+
+/* ===================== NAV ===================== */
+/* 語音導覽：進入每個遊戲畫面時，自動播放一句口語提示（例如「來把單字跟圖片連在一起吧！」），
+   降低孩子看文字說明的負擔；文字內容可在管理面板「語音導覽」分組裡調整。 */
+const VIEW_INTRO_KEY = {
+  flashcard:'intro.flashcard', matching:'intro.matching', quiz:'intro.quiz',
+  spelling:'intro.spelling', memory:'intro.memory', phonics:'intro.phonics'
+};
+function announceView(name){
+  const key = VIEW_INTRO_KEY[name];
+  if(!key) return;
+  const text = TEXT[key];
+  if(text) speakBrowserTTSZh(text);
+}
+function goView(name){
+  if(name==='phonics' && !PHONICS_ENABLED) name = 'home'; // 自然發音先隱藏，萬一有殘留連結還是導回首頁
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.querySelectorAll('#gameNav button').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
+  if(name==='memory' && !memInited) initMemory();
+  announceView(name);
+}
+document.querySelectorAll('[data-view]').forEach(el=>{
+  el.addEventListener('click', ()=> goView(el.dataset.view));
+});
+
+/* ===================== 分類選擇畫面 ===================== */
+function renderCategoryGrid(){
+  const wrap = document.getElementById('categoryGrid');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  CATEGORY_META.forEach(cat=>{
+    const words = getCategoryWords(cat.id);
+    if(!words.length) return;
+    const b = document.createElement('button');
+    b.className = 'category-card';
+    b.innerHTML = `<span class="cc-ic">${cat.icon}</span><span class="cc-label">${cat.label}</span><span class="cc-count">${words.length} 個單字</span>`;
+    b.onclick = ()=> enterCategory(cat.id);
+    wrap.appendChild(b);
+  });
+}
+function enterCategory(catId){
+  currentCategoryId = catId;
+  roundOffset = 0;
+  refreshRoundWords();
+  renderCategoryView();
+  fcIndex = 0; fcLearned = new Set();
+  renderFlashcard(); initMatching(); initQuiz(); initSpelling(); initPhonicsWord();
+  if(memInited) initMemory();
+  goView('category');
+  const meta = categoryMeta(catId);
+  speakBrowserTTSZh(meta.label + '，' + (TEXT['intro.category'] || '我們開始練習吧！'));
+  persistProgress();
+}
+function renderCategoryView(){
+  const meta = categoryMeta(currentCategoryId);
+  const titleEl = document.getElementById('catTitle');
+  if(titleEl) titleEl.textContent = meta.icon + ' ' + meta.label;
+  const catWords = getCategoryWords(currentCategoryId);
+  const size = roundSize();
+  const totalRounds = Math.max(1, Math.ceil(catWords.length / size));
+  const roundIdx = Math.floor(roundOffset / size) + 1;
+  const infoEl = document.getElementById('catRoundInfo');
+  if(infoEl) infoEl.textContent = '這一組共 '+ROUND_WORDS.length+' 個單字（第 '+roundIdx+' / '+totalRounds+' 組）';
+  const prevWrap = document.getElementById('catPreview');
+  if(prevWrap){
+    prevWrap.innerHTML = '';
+    ROUND_WORDS.forEach(w=>{
+      const d = document.createElement('div');
+      d.className='chip';
+      d.innerHTML = `<span class="em">${w.em}</span>${w.en}<br><span class="zy-display" style="justify-content:center;">${renderZhuyin(zhuyinPairsFromWord(w))}</span>
+        <div class="chip-speak-row">
+          <button class="chip-speak-btn" title="播放英文發音">🔊</button>
+          <button class="chip-speak-btn chip-speak-zh" title="播放中文發音">中</button>
+        </div>`;
+      d.querySelector('.chip-speak-btn:not(.chip-speak-zh)').onclick = (e)=>{ e.stopPropagation(); speak(w.en); };
+      d.querySelector('.chip-speak-zh').onclick = (e)=>{ e.stopPropagation(); speakChinese(w.en, w.zh); };
+      d.onclick = ()=> speak(w.en); // 這一組單字的預覽卡片，之前完全不能聽發音，現在點卡片本身就會唸英文
+      prevWrap.appendChild(d);
+    });
+  }
+}
+document.getElementById('catBack').onclick = ()=> goView('home');
+document.getElementById('catNextRound').onclick = ()=>{
+  const catWords = getCategoryWords(currentCategoryId);
+  const size = roundSize();
+  roundOffset += size;
+  if(roundOffset >= catWords.length) roundOffset = 0;
+  refreshRoundWords();
+  renderCategoryView();
+  fcIndex = 0; fcLearned = new Set();
+  renderFlashcard(); initMatching(); initQuiz(); initSpelling(); initPhonicsWord();
+  if(memInited) initMemory();
+  persistProgress();
+};
+document.querySelectorAll('#diffToggle button').forEach(btn=>{
+  btn.onclick = ()=>{
+    difficulty = btn.dataset.diff;
+    document.querySelectorAll('#diffToggle button').forEach(b=>b.classList.toggle('active', b===btn));
+    roundOffset = 0;
+    refreshRoundWords();
+    renderCategoryGrid();
+    if(document.getElementById('view-category').classList.contains('active')) renderCategoryView();
+    fcIndex = 0; fcLearned = new Set();
+    renderFlashcard(); initMatching(); initQuiz(); initSpelling(); initPhonicsWord();
+    if(memInited) initMemory();
+    persistProgress();
+  };
+});
+
+/* ===================== FLASHCARD ===================== */
+let fcIndex = 0;
+let fcLearned = new Set();
+function renderFlashcard(){
+  const rw = ROUND_WORDS;
+  if(fcIndex >= rw.length) fcIndex = 0;
+  const w = rw[fcIndex];
+  if(!w) return;
+  document.getElementById('fcArt').textContent = w.em;
+  document.getElementById('fcEn').textContent = w.en;
+  document.getElementById('fcZhuyin').innerHTML = renderZhuyin(zhuyinPairsFromWord(w));
+  document.getElementById('fcProgress').textContent = (fcIndex+1)+' / '+rw.length;
+  document.getElementById('fcCard').classList.toggle('learned', fcLearned.has(fcIndex));
+}
+document.getElementById('fcPrev').onclick = ()=>{ fcIndex=(fcIndex-1+ROUND_WORDS.length)%ROUND_WORDS.length; renderFlashcard(); };
+document.getElementById('fcNext').onclick = ()=>{ fcIndex=(fcIndex+1)%ROUND_WORDS.length; renderFlashcard(); };
+document.getElementById('fcSpeak').onclick = ()=> speak(ROUND_WORDS[fcIndex].en);
+document.getElementById('fcSpeakZh').onclick = ()=> speakChinese(ROUND_WORDS[fcIndex].en, ROUND_WORDS[fcIndex].zh);
+document.getElementById('fcCard').onclick = ()=> speak(ROUND_WORDS[fcIndex].en);
+document.getElementById('fcLearned').onclick = ()=>{
+  if(!fcLearned.has(fcIndex)){ fcLearned.add(fcIndex); addScore(5); renderFlashcard();
+    if(fcLearned.size===ROUND_WORDS.length) showPass('這組全部學會了！', '你已經看過這組全部 '+ROUND_WORDS.length+' 個單字卡片 🎉', 'flashcard');
+  }
+};
+
+/* ===================== MATCHING ===================== */
+let matchState = {};
+function initMatching(){
+  matchState = { selectedWord:null, matched:new Set(), score:0 };
+  const wordCol = document.getElementById('matchWords');
+  const imgCol = document.getElementById('matchImgs');
+  wordCol.innerHTML=''; imgCol.innerHTML='';
+  ROUND_WORDS.forEach((w,i)=>{
+    const b = document.createElement('div');
+    b.className='match-item'; b.textContent=w.en; b.dataset.idx=i;
+    b.onclick=()=>selectWord(i,b);
+    wordCol.appendChild(b);
+  });
+  shuffle(ROUND_WORDS.map((w,i)=>i)).forEach(i=>{
+    const w = ROUND_WORDS[i];
+    const b = document.createElement('div');
+    b.className='match-item emoji'; b.textContent=w.em; b.dataset.idx=i;
+    b.onclick=()=>selectImg(i,b);
+    imgCol.appendChild(b);
+  });
+  document.getElementById('matchProgress').textContent = '配對成功 0 / '+ROUND_WORDS.length;
+  document.getElementById('matchScore').textContent = '得分 0';
+}
+function selectWord(i, el){
+  if(matchState.matched.has(i)) return;
+  document.querySelectorAll('#matchWords .match-item').forEach(x=>x.classList.remove('selected'));
+  el.classList.add('selected');
+  matchState.selectedWord = {i, el};
+  speak(ROUND_WORDS[i].en); // 點英文單字先唸一次發音，幫助小孩知道要找哪張圖
+}
+function selectImg(i, el){
+  if(matchState.matched.has(i) || matchState.selectedWord===null) return;
+  const sel = matchState.selectedWord;
+  if(sel.i === i){
+    sel.el.classList.remove('selected'); sel.el.classList.add('matched');
+    el.classList.add('matched');
+    matchState.matched.add(i);
+    matchState.selectedWord = null;
+    matchState.score += 10; addScore(10);
+    celebrateCorrect(el, false); // false：接著要唸中文，鼓勵語音先不唸，避免互相打斷
+    speakChinese(ROUND_WORDS[i].en, ROUND_WORDS[i].zh);
+    document.getElementById('matchProgress').textContent = '配對成功 '+matchState.matched.size+' / '+ROUND_WORDS.length;
+    document.getElementById('matchScore').textContent = '得分 '+matchState.score;
+    if(matchState.matched.size === ROUND_WORDS.length){
+      setTimeout(()=> showPass('配對完成！', '得分 '+matchState.score+' 分，太厲害了 🎉', 'matching'), 300);
+    }
+  } else {
+    el.classList.add('wrong'); sel.el.classList.add('wrong');
+    gentleRetry();
+    setTimeout(()=>{ el.classList.remove('wrong'); sel.el.classList.remove('wrong','selected'); matchState.selectedWord=null; }, 350);
+  }
+}
+document.getElementById('matchRestart').onclick = initMatching;
+
+/* ===================== QUIZ ===================== */
+let quizState = {};
+/* 選擇題需要「正確答案 + 3 個干擾選項」共 4 個，如果這一組單字不到 4 個（分類最後一小組可能只剩 2-3 個），
+   就從同一個分類的其他單字裡補，都不夠的話才會用全部單字庫兜出 4 個選項，確保測驗一定能正常出題 */
+function quizOptionPool(){
+  if(ROUND_WORDS.length >= 4) return ROUND_WORDS;
+  const catWords = getCategoryWords(currentCategoryId);
+  if(catWords.length >= 4) return catWords;
+  return WORDS;
+}
+function initQuiz(){
+  quizState = { mode:'zh', order: shuffle(ROUND_WORDS.map((w,i)=>i)), q:0, score:0, answered:false };
+  renderQuizQuestion();
+}
+document.getElementById('modeZh').onclick = ()=>{ quizState.mode='zh'; toggleQuizModeUI(); initQuiz(); };
+document.getElementById('modeAudio').onclick = ()=>{ quizState.mode='audio'; toggleQuizModeUI(); initQuiz(); };
+function toggleQuizModeUI(){
+  document.getElementById('modeZh').classList.toggle('active', quizState.mode==='zh');
+  document.getElementById('modeAudio').classList.toggle('active', quizState.mode!=='zh');
+}
+function renderQuizQuestion(){
+  if(quizState.q >= quizState.order.length){
+    const pct = Math.round(quizState.score/(quizState.order.length*10)*100);
+    showPass(pct>=80?'這組測驗過關！':'這組測驗完成', '答對率 '+pct+'%，得分 '+quizState.score+' 分', 'quiz');
+    return;
+  }
+  quizState.answered = false;
+  const wi = quizState.order[quizState.q];
+  const w = ROUND_WORDS[wi];
+  const promptEl = document.getElementById('quizPrompt');
+  if(quizState.mode==='zh'){
+    promptEl.innerHTML = `<div class="zy-display">${renderZhuyin(zhuyinPairsFromWord(w))}</div>`;
+  } else {
+    promptEl.innerHTML = `<div style="font-size:13px;color:#8a84a0;margin-bottom:6px;">聽發音，選出正確圖片</div>`;
+    const btn = document.createElement('button');
+    btn.className='speak-btn big-speak'; btn.textContent='🔊';
+    btn.onclick = ()=> speak(w.en);
+    promptEl.appendChild(btn);
+    setTimeout(()=>speak(w.en), 300);
+  }
+  const pool = quizOptionPool().filter(x=>x!==w);
+  const distractorWords = shuffle(pool).slice(0,3);
+  const optionWords = shuffle([w, ...distractorWords]);
+  const optWrap = document.getElementById('quizOptions');
+  optWrap.innerHTML='';
+  optionWords.forEach(ow=>{
+    const b = document.createElement('div');
+    b.className='quiz-opt';
+    b.innerHTML = quizState.mode==='zh' ? `<span class="em">${ow.em}</span>${ow.en}` : `<span class="em">${ow.em}</span>`;
+    b.onclick = ()=> checkQuizAnswer(ow===w, b);
+    optWrap.appendChild(b);
+  });
+  document.getElementById('quizProgress').textContent = '第 '+(quizState.q+1)+' / '+quizState.order.length+' 題';
+  document.getElementById('quizScore').textContent = '得分 '+quizState.score;
+}
+function checkQuizAnswer(isCorrect, el){
+  if(quizState.answered) return;
+  quizState.answered = true;
+  el.classList.add(isCorrect?'correct':'incorrect');
+  if(isCorrect){ quizState.score+=10; addScore(10); celebrateCorrect(el); }
+  else { gentleRetry(); }
+  setTimeout(()=>{ quizState.q++; renderQuizQuestion(); }, 700);
+}
+document.getElementById('quizRestart').onclick = initQuiz;
+
+/* ===================== SPELLING ===================== */
+let spState = {};
+function initSpelling(){
+  spState = { order: shuffle(ROUND_WORDS.map((w,i)=>i)), q:0, score:0, current:[] };
+  renderSpelling();
+}
+function renderSpelling(){
+  if(spState.q >= spState.order.length){
+    showPass('這組拼字完成！', '得分 '+spState.score+' 分，單字王就是你 🌟', 'spelling');
+    return;
+  }
+  const w = ROUND_WORDS[spState.order[spState.q]];
+  document.getElementById('spEm').textContent = w.em;
+  document.getElementById('spZhuyin').innerHTML = renderZhuyin(zhuyinPairsFromWord(w));
+  spState.current = [];
+  const slots = document.getElementById('spSlots');
+  slots.innerHTML='';
+  for(let i=0;i<w.en.length;i++){
+    const s = document.createElement('div'); s.className='slot'; slots.appendChild(s);
+  }
+  const letters = shuffle(w.en.split(''));
+  const bank = document.getElementById('spBank');
+  bank.innerHTML='';
+  letters.forEach((ch,idx)=>{
+    const t = document.createElement('button');
+    t.className='letter-tile'; t.textContent=ch;
+    t.onclick = ()=>{
+      if(t.classList.contains('used')) return;
+      if(spState.current.length >= w.en.length) return;
+      playAlphabetSound(ch); // 拼字時點字母磚，先唸一次這個字母的名稱，邊拼邊記字母
+      spState.current.push({ch, tile:t});
+      t.classList.add('used');
+      updateSlots(w);
+    };
+    bank.appendChild(t);
+  });
+  document.getElementById('spProgress').textContent = '第 '+(spState.q+1)+' / '+spState.order.length+' 題';
+  document.getElementById('spScore').textContent = '得分 '+spState.score;
+}
+function updateSlots(w){
+  const slots = document.querySelectorAll('#spSlots .slot');
+  slots.forEach((s,i)=>{
+    if(spState.current[i]){ s.textContent = spState.current[i].ch; s.classList.add('filled'); }
+    else { s.textContent=''; s.classList.remove('filled'); }
+  });
+}
+/* 清除改成一次只退回最後一個字母，不要整組一次清空，
+   讓小孩比較有「一步一步調整」的成就感，而不是一按就整個歸零重來 */
+document.getElementById('spClear').onclick = ()=>{
+  if(!spState.current.length) return;
+  const last = spState.current.pop();
+  last.tile.classList.remove('used');
+  const w = ROUND_WORDS[spState.order[spState.q]];
+  updateSlots(w);
+};
+/* 拼字遊戲之前沒辦法先聽發音，小孩根本不知道要拼什麼字，這裡加上英文／中文發音按鈕，
+   可以在動手排字母之前先聽聽看這個字怎麼唸 */
+document.getElementById('spSpeak').onclick = ()=>{
+  const w = ROUND_WORDS[spState.order[spState.q]];
+  if(w) speak(w.en);
+};
+document.getElementById('spSpeakZh').onclick = ()=>{
+  const w = ROUND_WORDS[spState.order[spState.q]];
+  if(w) speakChinese(w.en, w.zh);
+};
+document.getElementById('spCheck').onclick = ()=>{
+  const w = ROUND_WORDS[spState.order[spState.q]];
+  const guess = spState.current.map(c=>c.ch).join('');
+  const card = document.querySelector('.spell-card');
+  if(guess === w.en){
+    spState.score += 10; addScore(10);
+    card.style.animation='none'; void card.offsetWidth; card.style.animation='pop .3s';
+    celebrateCorrect(card, false); // false：緊接著要唸單字發音，鼓勵語音先不唸，避免兩段語音互相打斷
+    speak(w.en);
+    setTimeout(()=>{ spState.q++; renderSpelling(); }, 500);
+  } else {
+    const slotsEl = document.getElementById('spSlots');
+    slotsEl.style.animation='none'; void slotsEl.offsetWidth; slotsEl.style.animation='shake .35s';
+    gentleRetry();
+  }
+};
+
+/* ===================== PHONICS（自然發音：字母認讀 + 陰影提示拼字） =====================
+   上半部：26 個字母方塊，點下去播放該字母的自然發音（不是唸字母名稱），邊玩邊熟悉字母的聲音。
+   下半部：跟拼字遊戲很像，但每個空格會先用淡淡的「陰影字母」當提示（Ghost letters），
+   而且每次點字母磚都會先播放該字母的發音，再把字母放進空格，邊拼邊強化發音記憶。 */
+const ALPHABET = 'abcdefghijklmnopqrstuvwxyz'.split('');
+function renderPhonicsAlphabet(){
+  const wrap = document.getElementById('phonicsAlphabet');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  ALPHABET.forEach(ch=>{
+    const b = document.createElement('button');
+    b.className = 'alpha-tile';
+    b.textContent = ch.toUpperCase();
+    b.onclick = ()=>{
+      b.classList.remove('bounce'); void b.offsetWidth; b.classList.add('bounce');
+      playPhonicsSound(ch);
+    };
+    wrap.appendChild(b);
+  });
+}
+/* 陰影拼字挑戰只適合單一英文單字（不含空格／標點），如果這一組單字裡沒有符合的字，
+   就跟測驗選項一樣往外找：先找同分類，再找不到就從全部單字庫裡找，確保一定玩得起來 */
+function phonicsWordPool(){
+  const simple = w => /^[a-zA-Z]{2,10}$/.test(w.en);
+  let pool = ROUND_WORDS.filter(simple);
+  if(!pool.length) pool = getCategoryWords(currentCategoryId).filter(simple);
+  if(!pool.length) pool = WORDS.filter(simple);
+  return pool;
+}
+let phState = {};
+function initPhonicsWord(){
+  const pool = phonicsWordPool();
+  phState = { pool, order: shuffle(pool.map((w,i)=>i)), q:0, score:0, current:[] };
+  renderPhonicsWord();
+}
+function renderPhonicsWord(){
+  const emEl = document.getElementById('phEm');
+  if(!emEl) return;
+  if(!phState.pool || !phState.pool.length){
+    document.getElementById('phWordZhuyin').innerHTML = '';
+    document.getElementById('phSlots').innerHTML = '';
+    document.getElementById('phBank').innerHTML = '';
+    emEl.textContent = '🙈';
+    document.getElementById('phProgress').textContent = '這一組暫時沒有適合的單字';
+    document.getElementById('phScore').textContent = '得分 '+(phState.score||0);
+    return;
+  }
+  if(phState.q >= phState.order.length){
+    showPass('自然發音完成！', '得分 '+phState.score+' 分，字母小達人 🔡🎉', 'phonics');
+    return;
+  }
+  const w = phState.pool[phState.order[phState.q]];
+  emEl.textContent = w.em;
+  document.getElementById('phWordZhuyin').innerHTML = renderZhuyin(zhuyinPairsFromWord(w));
+  phState.current = [];
+  const slots = document.getElementById('phSlots');
+  slots.innerHTML = '';
+  w.en.split('').forEach(ch=>{
+    const s = document.createElement('div');
+    s.className = 'slot ghost';
+    s.dataset.letter = ch;
+    s.textContent = ch;
+    slots.appendChild(s);
+  });
+  const letters = shuffle(w.en.split(''));
+  const bank = document.getElementById('phBank');
+  bank.innerHTML = '';
+  letters.forEach(ch=>{
+    const t = document.createElement('button');
+    t.className = 'letter-tile'; t.textContent = ch;
+    t.onclick = ()=>{
+      if(t.classList.contains('used')) return;
+      if(phState.current.length >= w.en.length) return;
+      playPhonicsSound(ch);
+      phState.current.push({ch, tile:t});
+      t.classList.add('used');
+      updatePhonicsSlots(w);
+    };
+    bank.appendChild(t);
+  });
+  document.getElementById('phProgress').textContent = '第 '+(phState.q+1)+' / '+phState.order.length+' 題';
+  document.getElementById('phScore').textContent = '得分 '+phState.score;
+}
+function updatePhonicsSlots(w){
+  const slots = document.querySelectorAll('#phSlots .slot');
+  slots.forEach((s,i)=>{
+    if(phState.current[i]){
+      s.textContent = phState.current[i].ch;
+      s.classList.add('filled'); s.classList.remove('ghost');
+    } else {
+      s.textContent = s.dataset.letter;
+      s.classList.add('ghost'); s.classList.remove('filled');
+    }
+  });
+}
+document.getElementById('phClear').onclick = ()=>{
+  if(!phState.pool || !phState.pool.length || !phState.current.length) return;
+  const last = phState.current.pop();
+  last.tile.classList.remove('used');
+  const w = phState.pool[phState.order[phState.q]];
+  updatePhonicsSlots(w);
+};
+document.getElementById('phCheck').onclick = ()=>{
+  if(!phState.pool || !phState.pool.length) return;
+  const w = phState.pool[phState.order[phState.q]];
+  const guess = phState.current.map(c=>c.ch).join('');
+  const cards = document.querySelectorAll('#view-phonics .spell-card');
+  const card = cards[cards.length-1];
+  if(guess === w.en){
+    phState.score += 10; addScore(10);
+    card.style.animation='none'; void card.offsetWidth; card.style.animation='pop .3s';
+    celebrateCorrect(card, false);
+    speak(w.en);
+    setTimeout(()=>{ phState.q++; renderPhonicsWord(); }, 500);
+  } else {
+    const slotsEl = document.getElementById('phSlots');
+    slotsEl.style.animation='none'; void slotsEl.offsetWidth; slotsEl.style.animation='shake .35s';
+    gentleRetry();
+  }
+};
+renderPhonicsAlphabet();
+
+/* 自然發音先隱藏（等真的字母發音音檔準備好），把導覽列跟主題頁的入口都藏起來，
+   PHONICS_ENABLED 改回 true 就會恢復顯示，其他程式碼都不用動 */
+if(!PHONICS_ENABLED){
+  document.querySelectorAll('[data-view="phonics"]').forEach(el=> el.classList.add('hidden'));
+  const nav = document.getElementById('gameNav');
+  if(nav) nav.style.gridTemplateColumns = 'repeat(5,1fr)';
+  const memoryCard = document.querySelector('.game-card.gc-5');
+  if(memoryCard) memoryCard.style.gridColumn = '1/-1';
+}
+
+/* ===================== MEMORY ===================== */
+let memInited = false;
+let memState = {};
+function initMemory(){
+  memInited = true;
+  const cards = [];
+  ROUND_WORDS.forEach((w,i)=>{
+    cards.push({key:i, type:'em', content:w.em});
+    cards.push({key:i, type:'en', content:w.en});
+  });
+  const shuffled = shuffle(cards);
+  memState = { cards:shuffled, flipped:[], matched:new Set(), moves:0, locked:false };
+  const grid = document.getElementById('memGrid');
+  grid.innerHTML='';
+  shuffled.forEach((c, idx)=>{
+    const cardEl = document.createElement('div');
+    cardEl.className='mem-card';
+    cardEl.innerHTML = `<div class="mem-inner">
+      <div class="mem-face mem-back">❓</div>
+      <div class="mem-face mem-front">${c.type==='em' ? c.content : '<div class=\"en\">'+c.content+'</div>'}</div>
+    </div>`;
+    cardEl.onclick = ()=> flipMemCard(idx, cardEl);
+    grid.appendChild(cardEl);
+  });
+  document.getElementById('memMoves').textContent = '翻牌次數 0';
+  document.getElementById('memPairs').textContent = '配對成功 0 / '+ROUND_WORDS.length;
+}
+function flipMemCard(idx, el){
+  if(memState.locked) return;
+  if(el.classList.contains('flip') || el.classList.contains('matched')) return;
+  if(memState.flipped.length>=2) return;
+  el.classList.add('flip');
+  memState.flipped.push({idx, el});
+  if(memState.flipped.length===2){
+    memState.moves++;
+    document.getElementById('memMoves').textContent = '翻牌次數 '+memState.moves;
+    const [a,b] = memState.flipped;
+    const ca = memState.cards[a.idx], cb = memState.cards[b.idx];
+    if(ca.key===cb.key && ca.type!==cb.type){
+      a.el.classList.add('matched'); b.el.classList.add('matched');
+      memState.matched.add(ca.key);
+      memState.flipped = [];
+      memState.score = (memState.score||0)+10; addScore(10);
+      celebrateCorrect(a.el, false); // false：接著會唸出單字發音，鼓勵語音先不唸
+      speak(ROUND_WORDS[ca.key].en);
+      document.getElementById('memPairs').textContent = '配對成功 '+memState.matched.size+' / '+ROUND_WORDS.length;
+      if(memState.matched.size===ROUND_WORDS.length){
+        setTimeout(()=> showPass('這組記憶王！', '用 '+memState.moves+' 次翻牌完成配對 🧠🎉', 'memory'), 300);
+      }
+    } else {
+      memState.locked = true;
+      gentleRetry(false); // 翻牌配對常常會翻錯，只給溫和提示音，不唸語音，避免太吵
+      setTimeout(()=>{
+        a.el.classList.remove('flip'); b.el.classList.remove('flip');
+        memState.flipped = [];
+        memState.locked = false;
+      }, 700);
+    }
+  }
+}
+document.getElementById('memRestart').onclick = initMemory;
+
+/* 把目前這一組（分類＋難度篩選過後的 ROUND_WORDS）套用到所有遊戲畫面。
+   開機時、雲端資料載入後、切換分類／難度、單字新增刪除編輯後都會呼叫這個。 */
+function refreshRoundWords(){
+  ensureDefaultCategory();
+  ROUND_WORDS = getRoundWords();
+}
+function renderAllGames(){
+  refreshRoundWords();
+  fcIndex = 0;
+  fcLearned = new Set();
+  renderCategoryGrid();
+  if(document.getElementById('view-category').classList.contains('active')) renderCategoryView();
+  renderFlashcard();
+  initMatching();
+  initQuiz();
+  initSpelling();
+  initPhonicsWord();
+  if(memInited) initMemory();
+}
+
+/* ===================== 套用文字內容／字級設定 ===================== */
+function applyText(){
+  document.querySelectorAll('[data-tkey]').forEach(el=>{
+    const key = el.dataset.tkey;
+    if(TEXT[key] !== undefined) el.textContent = TEXT[key];
+  });
+}
+function applyFontScale(){
+  FS_KEYS.forEach(k=>{
+    document.documentElement.style.setProperty('--fs-'+k, FONT_SCALE[k] || 1);
+  });
+}
+
+/* ===================== 管理模式：登入 / 登出 ===================== */
+function openModal(id){ document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+document.querySelectorAll('[data-close]').forEach(el=>{
+  el.addEventListener('click', ()=> closeModal(el.dataset.close));
+});
+
+let longPressTimer = null;
+const adminTrigger = document.getElementById('adminTrigger');
+function startLongPress(){
+  clearTimeout(longPressTimer);
+  longPressTimer = setTimeout(()=>{
+    if(document.body.classList.contains('admin-mode')) return;
+    document.getElementById('loginErr').textContent = '';
+    openModal('loginModal');
+  }, 3000);
+}
+function cancelLongPress(){ clearTimeout(longPressTimer); }
+adminTrigger.addEventListener('pointerdown', startLongPress);
+adminTrigger.addEventListener('pointerup', cancelLongPress);
+adminTrigger.addEventListener('pointerleave', cancelLongPress);
+adminTrigger.addEventListener('pointercancel', cancelLongPress);
+
+document.getElementById('loginSubmit').onclick = async ()=>{
+  const email = document.getElementById('loginEmail').value.trim();
+  const pw = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginErr');
+  errEl.textContent = '';
+  if(!window.FB){ errEl.textContent = '連線功能尚未就緒，請稍後再試'; return; }
+  try{
+    await window.FB.signIn(email, pw);
+    closeModal('loginModal');
+    document.getElementById('loginPassword').value = '';
+  }catch(e){
+    errEl.textContent = '登入失敗，請確認帳號密碼是否正確';
+  }
+};
+document.getElementById('adminLogout').onclick = ()=>{ if(window.FB) window.FB.signOut(); };
+
+function setAdminMode(isAdmin){
+  document.body.classList.toggle('admin-mode', isAdmin);
+}
+
+/* ===================== 文字內容管理面板 =====================
+   所有可編輯文字集中在這個面板裡改，畫面（包含小孩看到的畫面）上不會出現任何鉛筆／編輯圖示，
+   只有登入管理模式、打開這個面板才看得到、改得到。 */
+const TEXT_GROUPS = [
+  { label:'App 標題', keys:['app.title','app.subtitle'] },
+  { label:'難度標籤', keys:['diff.easy','diff.medium','diff.hard'] },
+  { label:'語速控制', keys:['speed.label'] },
+  { label:'導覽列', keys:['nav.home','nav.flashcard','nav.matching','nav.quiz','nav.spelling','nav.phonics'] },
+  { label:'首頁', keys:['home.greeting','home.intro','home.card1.title','home.card1.desc',
+      'home.card2.title','home.card2.desc','home.card3.title','home.card3.desc',
+      'home.card4.title','home.card4.desc','home.card5.title','home.card5.desc',
+      'home.card6.title','home.card6.desc','home.footer'] },
+  { label:'單字卡', keys:['flashcard.hint','flashcard.learnedTag','flashcard.learnedBtn'] },
+  { label:'配對遊戲', keys:['matching.title','matching.sub'] },
+  { label:'測驗', keys:['quiz.title','quiz.modeZh','quiz.modeAudio'] },
+  { label:'拼字遊戲', keys:['spelling.title','spelling.sub','spelling.clear','spelling.submit'] },
+  { label:'記憶配對', keys:['memory.title','memory.sub'] },
+  { label:'自然發音', keys:['phonics.title','phonics.alphabetHint','phonics.wordTitle','phonics.wordHint'] },
+  { label:'語音導覽（進入遊戲時自動播放的口語提示）', keys:['intro.flashcard','intro.matching','intro.quiz','intro.spelling','intro.memory','intro.phonics','intro.category'] },
+  { label:'通用按鈕', keys:['btn.restart','pass.close'] },
+];
+function renderTextManagerList(){
+  const wrap = document.getElementById('textManagerList');
+  wrap.innerHTML = '';
+  TEXT_GROUPS.forEach(group=>{
+    const h = document.createElement('h3');
+    h.style.cssText = 'font-size:13px; margin:16px 0 4px; color:#8a7fb5;';
+    h.textContent = group.label;
+    wrap.appendChild(h);
+    group.keys.forEach(key=>{
+      const row = document.createElement('div');
+      row.innerHTML = `<input type="text" data-tmkey="${key}" value="">`;
+      row.querySelector('input').value = TEXT[key] || '';
+      row.style.marginBottom = '6px';
+      wrap.appendChild(row);
+    });
+  });
+}
+document.getElementById('adminOpenTextManager').onclick = ()=>{
+  renderTextManagerList();
+  document.getElementById('textManagerErr').textContent = '';
+  openModal('textManagerModal');
+};
+document.getElementById('textManagerSave').onclick = async ()=>{
+  const errEl = document.getElementById('textManagerErr');
+  document.querySelectorAll('#textManagerList input[data-tmkey]').forEach(inp=>{
+    TEXT[inp.dataset.tmkey] = inp.value;
+  });
+  applyText();
+  try{
+    if(window.FB) await window.FB.saveSiteSettings({ text: TEXT });
+    closeModal('textManagerModal');
+  }catch(e){
+    errEl.textContent = '已套用在畫面上，但儲存到雲端失敗，請檢查網路連線';
+  }
+};
+
+/* ===================== 字級設定面板 ===================== */
+function renderFontSliders(){
+  const wrap = document.getElementById('fsSliderList');
+  wrap.innerHTML = '';
+  FS_KEYS.forEach(k=>{
+    const row = document.createElement('div');
+    row.className = 'fs-slider-row';
+    row.innerHTML = `<div class="row between"><span>${FS_LABELS[k]}</span><span id="fsVal-${k}">${(FONT_SCALE[k]||1).toFixed(2)}x</span></div>
+      <input type="range" min="0.7" max="1.8" step="0.05" value="${FONT_SCALE[k]||1}" data-fskey="${k}">`;
+    wrap.appendChild(row);
+  });
+  wrap.querySelectorAll('input[type="range"]').forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      const k = inp.dataset.fskey;
+      FONT_SCALE[k] = parseFloat(inp.value);
+      document.getElementById('fsVal-'+k).textContent = FONT_SCALE[k].toFixed(2)+'x';
+      applyFontScale();
+    });
+  });
+}
+document.getElementById('adminOpenFontPanel').onclick = ()=>{
+  renderFontSliders();
+  document.getElementById('fontPanelErr').textContent = '';
+  openModal('fontPanelModal');
+};
+document.getElementById('fontPanelReset').onclick = ()=>{
+  FONT_SCALE = defaultFontScale();
+  applyFontScale();
+  renderFontSliders();
+};
+document.getElementById('fontPanelSave').onclick = async ()=>{
+  const errEl = document.getElementById('fontPanelErr');
+  try{
+    if(window.FB) await window.FB.saveSiteSettings({ fontScale: FONT_SCALE });
+    closeModal('fontPanelModal');
+  }catch(e){
+    errEl.textContent = '已套用在畫面上，但儲存到雲端失敗，請檢查網路連線';
+  }
+};
+
+/* ===================== 單字管理面板 ===================== */
+let wordTableFilter = 'all';
+function categorySelectOptions(includeAll){
+  let html = includeAll ? '<option value="all">全部分類</option>' : '';
+  html += CATEGORY_META.map(c=>`<option value="${c.id}">${c.icon} ${c.label}</option>`).join('');
+  return html;
+}
+function renderWordTable(){
+  const tbody = document.getElementById('wordTableBody');
+  tbody.innerHTML = '';
+  const list = wordTableFilter==='all' ? WORDS : WORDS.filter(w=>(w.category||'park')===wordTableFilter);
+  list.forEach((w)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${w.em}</td><td>${w.en}</td><td>${w.zh}</td><td>${w.zhu||''}</td>
+      <td class="wt-actions">
+        <button class="wt-edit" type="button">編輯</button>
+        <button class="wt-del" type="button">刪除</button>
+      </td>`;
+    tr.querySelector('.wt-edit').onclick = ()=> openWordEdit(w);
+    tr.querySelector('.wt-del').onclick = ()=> deleteWordRow(w);
+    tbody.appendChild(tr);
+  });
+}
+document.getElementById('adminOpenWordManager').onclick = ()=>{
+  document.getElementById('wordManagerErr').textContent = '';
+  const filterSel = document.getElementById('wFilterCategory');
+  filterSel.innerHTML = categorySelectOptions(true);
+  filterSel.value = wordTableFilter;
+  document.getElementById('wAddCategory').innerHTML = categorySelectOptions(false);
+  renderWordTable();
+  openModal('wordManagerModal');
+};
+document.getElementById('wFilterCategory').onchange = (e)=>{ wordTableFilter = e.target.value; renderWordTable(); };
+async function reloadWordsFromCloud(){
+  if(!window.FB) return;
+  try{
+    const rows = await window.FB.getWords();
+    if(rows.length){
+      WORDS = rows.map(r=>({id:r.id, en:r.en, zh:r.zh, zhu:r.zhu||'', em:r.em, category:r.category||'park'}));
+      renderAllGames();
+      renderWordTable();
+    }
+  }catch(e){ /* 讀取失敗就先維持目前畫面上的資料 */ }
+}
+document.getElementById('wAddSubmit').onclick = async ()=>{
+  const errEl = document.getElementById('wordManagerErr');
+  const category = document.getElementById('wAddCategory').value;
+  const em = document.getElementById('wAddEm').value.trim();
+  const en = document.getElementById('wAddEn').value.trim();
+  const zh = document.getElementById('wAddZh').value.trim();
+  const zhu = document.getElementById('wAddZhu').value.trim();
+  if(!en || !zh){ errEl.textContent = '英文和中文為必填'; return; }
+  errEl.textContent = '';
+  try{
+    if(window.FB){
+      await window.FB.addWord({ en, zh, zhu, em, category, order: WORDS.length });
+      await reloadWordsFromCloud();
+    } else {
+      WORDS.push({en, zh, zhu, em, category});
+      renderAllGames(); renderWordTable();
+    }
+    document.getElementById('wAddEm').value='';
+    document.getElementById('wAddEn').value='';
+    document.getElementById('wAddZh').value='';
+    document.getElementById('wAddZhu').value='';
+  }catch(e){
+    errEl.textContent = '新增失敗，請檢查網路連線';
+  }
+};
+let editingWord = null;
+function openWordEdit(w){
+  editingWord = w;
+  document.getElementById('wEditCategory').innerHTML = categorySelectOptions(false);
+  document.getElementById('wEditCategory').value = w.category || 'park';
+  document.getElementById('wEditEm').value = w.em || '';
+  document.getElementById('wEditEn').value = w.en || '';
+  document.getElementById('wEditZh').value = w.zh || '';
+  document.getElementById('wEditZhu').value = w.zhu || '';
+  document.getElementById('wordEditErr').textContent = '';
+  openModal('wordEditModal');
+}
+document.getElementById('wEditSave').onclick = async ()=>{
+  const errEl = document.getElementById('wordEditErr');
+  const category = document.getElementById('wEditCategory').value;
+  const em = document.getElementById('wEditEm').value.trim();
+  const en = document.getElementById('wEditEn').value.trim();
+  const zh = document.getElementById('wEditZh').value.trim();
+  const zhu = document.getElementById('wEditZhu').value.trim();
+  if(!en || !zh){ errEl.textContent = '英文和中文為必填'; return; }
+  try{
+    if(window.FB && editingWord.id){
+      await window.FB.updateWord(editingWord.id, { en, zh, zhu, em, category });
+      await reloadWordsFromCloud();
+    } else {
+      Object.assign(editingWord, {en, zh, zhu, em, category});
+      renderAllGames(); renderWordTable();
+    }
+    closeModal('wordEditModal');
+  }catch(e){
+    errEl.textContent = '儲存失敗，請檢查網路連線';
+  }
+};
+async function deleteWordRow(w){
+  if(!confirm('確定要刪除「'+w.en+'」這個單字嗎？')) return;
+  try{
+    if(window.FB && w.id){
+      await window.FB.deleteWord(w.id);
+      await reloadWordsFromCloud();
+    } else {
+      WORDS = WORDS.filter(x=>x!==w);
+      renderAllGames(); renderWordTable();
+    }
+  }catch(e){
+    document.getElementById('wordManagerErr').textContent = '刪除失敗，請檢查網路連線';
+  }
+}
+
+/* ===================== 開機流程 ===================== */
+// 先用預設資料把整個畫面渲染出來，離線或雲端連不上時也能正常使用
+renderAllGames();
+initAutoZhuyin();
+
+// 等 Firebase 準備好後：監聽登入狀態、嘗試讀取雲端的文字/字級/單字設定
+function bootFirebase(){
+  if(!window.FB) return;
+
+  // 管理員登入（email/password）跟小孩玩遊戲用的匿名登入，都會觸發這個callback，
+  // 用 user.isAnonymous 分辨兩者，只有「不是匿名」才顯示管理員工具列；
+  // 完全沒有登入狀態的話，就自動幫這台裝置悄悄匿名登入，好讓「跨裝置進度代碼」功能可以讀寫 Firestore。
+  let authResolved = false;
+  let resolveAuthReady;
+  const authReady = new Promise(res=> resolveAuthReady = res);
+  window.FB.onAuthStateChanged((user)=>{
+    setAdminMode(!!user && !user.isAnonymous);
+    if(user){
+      if(!authResolved){ authResolved = true; resolveAuthReady(user); }
+    } else if(window.FB.signInAnonymously){
+      window.FB.signInAnonymously().catch(()=>{
+        if(!authResolved){ authResolved = true; resolveAuthReady(null); }
+      });
+    } else if(!authResolved){
+      authResolved = true; resolveAuthReady(null);
+    }
+  });
+
+  window.FB.getSiteSettings().then(data=>{
+    if(data){
+      if(data.text) TEXT = Object.assign({}, DEFAULT_TEXT, data.text);
+      if(data.fontScale) FONT_SCALE = Object.assign(defaultFontScale(), data.fontScale);
+      applyText();
+      applyFontScale();
+    }
+  }).catch(()=>{ /* 讀不到就維持預設文字 */ });
+
+  const wordsPromise = window.FB.getWords().catch(()=> null);
+  // 進度（星星／獎章／練習到哪裡）要等匿名登入完成才讀得到，跟單字資料可以同時進行，最後一起套用畫面
+  const progressPromise = authReady.then(()=>{
+    if(!window.FB.getProgress) return null;
+    return window.FB.getProgress(ensureProgressCode()).catch(()=> null);
+  });
+
+  Promise.all([wordsPromise, progressPromise]).then(([rows, progressData])=>{
+    if(rows && rows.length){
+      WORDS = rows.map(r=>({id:r.id, en:r.en, zh:r.zh, zhu:r.zhu||'', em:r.em, category:r.category||'park'}));
+      currentCategoryId = null; // 先重新依雲端資料選一次預設分類，如果讀到進度會再覆蓋回上次練習的主題
+    }
+    applyProgress(progressData);
+    refreshRoundWords();
+    renderAllGames();
+  });
+}
+if(window.FB){ bootFirebase(); } else { window.addEventListener('fb-ready', bootFirebase, {once:true}); }
+</script>
+</body>
+</html>
